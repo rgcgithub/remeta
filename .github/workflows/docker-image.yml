@@ -1,0 +1,24 @@
+name: Docker Image CI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get VERSION
+      id: version
+      run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+
+    - name: Build the Docker image
+      run: |
+        docker build . --file docker/remeta.dockerfile --tag ghcr.io/${{ env.REPO_NAME }}/remeta:v${{ steps.version.outputs.version }}
+        docker push ghcr.io/${{ env.REPO_NAME }}/remeta:v${{ steps.version.outputs.version }}
