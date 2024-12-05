@@ -1,0 +1,12 @@
+site_name: remeta
+theme:
+  name: null
+  custom_dir: 'cinder'
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Tutorial: tutorial.md
+  - File Formats: file_formats.md
+  - Documentation: documentation.md
+markdown_extensions:
+  - footnotes
