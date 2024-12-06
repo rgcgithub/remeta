@@ -41,7 +41,7 @@ How remeta stores LD matrices for conditional analysis
 </p>
 
 <p align="center">
-<img src="/img/ld_overview.png" alt="LD diagram" width="70%" />
+<img src="/remeta/img/ld_overview.png" alt="LD diagram" width="70%" />
 </p>
 
 **remeta** has two options for computing the LD of exome variants and imputed variants depending on how they are stored in the input plink2 files.
