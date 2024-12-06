@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    
+    
+    <link rel="shortcut icon" href="../img/favicon.ico">
+
+    
+    <title>File Formats - remeta</title>
+    
+
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.12.0/css/all.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.12.0/css/v4-shims.css">
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/hack-font@3.3.0/build/web/hack.min.css">
+    <link href='//rsms.me/inter/inter.css' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,700italic,400,300,600,700&subset=latin-ext,latin' rel='stylesheet' type='text/css'>
+    <link href="../css/bootstrap-custom.min.css" rel="stylesheet">
+    <link href="../css/base.min.css" rel="stylesheet">
+    <link href="../css/cinder.min.css" rel="stylesheet">
+
+    
+        
+        <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.0/build/styles/github.min.css">
+        
+    
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+            <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+        <![endif]-->
+
+    
+
+     
+</head>
+
+<body>
+
+    <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container">
+
+        <!-- Collapsed navigation -->
+        <div class="navbar-header">
+            <!-- Expander button -->
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            
+
+            <!-- Main title -->
+
+            
+              <a class="navbar-brand" href="..">remeta</a>
+            
+        </div>
+
+        <!-- Expanded navigation -->
+        <div class="navbar-collapse collapse">
+                <!-- Main navigation -->
+                <ul class="nav navbar-nav">
+                
+                
+                    <li >
+                        <a href="..">Home</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../install/">Install</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../tutorial/">Tutorial</a>
+                    </li>
+                
+                
+                
+                    <li class="active">
+                        <a href="./">File Formats</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../documentation/">Documentation</a>
+                    </li>
+                
+                
+                </ul>
+
+            <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="#" data-toggle="modal" data-target="#mkdocs_search_modal">
+                            <i class="fas fa-search"></i> Search
+                        </a>
+                    </li>
+                    <li >
+                        <a rel="prev" href="../tutorial/">
+                            <i class="fas fa-arrow-left"></i> Previous
+                        </a>
+                    </li>
+                    <li >
+                        <a rel="next" href="../documentation/">
+                            Next <i class="fas fa-arrow-right"></i>
+                        </a>
+                    </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+    <div class="container">
+        
+        
+        <div class="col-md-3"><div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+        <li class="first-level active"><a href="#file-formats">File Formats</a></li>
+            <li class="second-level"><a href="#annotation-files">Annotation Files</a></li>
+                
+                <li class="third-level"><a href="#-anno-file">--anno-file</a></li>
+                <li class="third-level"><a href="#-set-list">--set-list</a></li>
+                <li class="third-level"><a href="#-mask-def">--mask-def</a></li>
+                <li class="third-level"><a href="#-aaf-file">--aaf-file</a></li>
+            <li class="second-level"><a href="#reference-ld-files">Reference LD Files</a></li>
+                
+                <li class="third-level"><a href="#-ld-prefix">--ld-prefix</a></li>
+                <li class="third-level"><a href="#-gene-list">--gene-list</a></li>
+                <li class="third-level"><a href="#-target-pfile-and-buffer-pfile">--target-pfile and --buffer-pfile</a></li>
+                <li class="third-level"><a href="#-genetic-map">--genetic-map</a></li>
+            <li class="second-level"><a href="#miscellaneous-files">Miscellaneous Files</a></li>
+                
+                <li class="third-level"><a href="#-htp">--htp</a></li>
+                <li class="third-level"><a href="#-extract-and-exclude">--extract and --exclude</a></li>
+                <li class="third-level"><a href="#-genep-def">--genep-def</a></li>
+    </ul>
+</div></div>
+        <div class="col-md-9" role="main">
+
+<h1 id="file-formats">File Formats</h1>
+<h2 id="annotation-files">Annotation Files</h2>
+<p><strong>remeta</strong> uses many of the same files as <strong>regenie</strong> to define variant sets.
+Most annotation files compatible with <strong>regenie</strong> should also be compatible with <strong>remeta</strong>.</p>
+<h3 id="-anno-file"><code>--anno-file</code></h3>
+<pre><code>1:55039839:T:C PCSK9 LoF
+1:55039842:G:A PCSK9 missense
+.
+</code></pre>
+<p>A file defining variant annotations.
+Contains 3 whitespace delimited columns: variant id (in CPRA format), gene name, and variant annotation.</p>
+<h3 id="-set-list"><code>--set-list</code></h3>
+<pre><code>A1BG 19  58346922  19:58346922:C:A,19:58346924:G:A,...
+A1CF 10  50806630  10:50806630:A:G,10:50806630:A:AT,...
+.
+</code></pre>
+<p>A file defining which variants are part of a gene set.
+Contains 4 whitespace delimited columns: gene name, chromosome, start position, and a comma separated list of variants in the gene.</p>
+<h3 id="-mask-def"><code>--mask-def</code></h3>
+<pre><code>LoF LoF
+missense missense
+LoF_missense LoF,missense
+.
+</code></pre>
+<p>A file specifying which annotation categories to combine into masks.
+Contains 2 whitespace delimited columns: mask name, and a comma separated list of variant annotations in a mask.</p>
+<h3 id="-aaf-file"><code>--aaf-file</code></h3>
+<p>An optional file with variant alternate allele frequencies.
+If specified, these frequencies are used for building masks.
+Three formats are supported.
+All formats assume whitespace separated columns.</p>
+<ul>
+<li><strong>Two Column Format</strong>: CPRA and allele frequency</li>
+<li><strong>Five Column Format</strong>: CPRA, frequency, is singleton (either 0 or 1), chromosome, position</li>
+<li><strong>Six Column Format</strong> (plink2 afreq file): chromosome, CPRA, ref, alt, alt_freqs, and obs_ct</li>
+</ul>
+<p>Here is an example of the five column format:</p>
+<pre><code>7:6187101:C:T 1.53918207864341e-05 0 7 6187101
+7:6190395:C:A 2.19920388819247e-06 1 7 6190395
+.
+</code></pre>
+<h2 id="reference-ld-files">Reference LD Files</h2>
+<h3 id="-ld-prefix"><code>--ld-prefix</code></h3>
+<p>A set of three files named <code>$PREFIX.remeta.gene.ld</code>, <code>$PREFIX.remeta.buffer.ld</code>, and <code>$PREFIX.remeta.ld.idx.gz</code> generated by <code>remeta compute-ref-ld</code>.
+The index <code>$PREFIX.remeta.ld.idx.gz</code> is bgzipped and human readable.
+The columns are:</p>
+<ul>
+<li><code>GENE_NAME</code></li>
+<li><code>GENE_LD_INDEX</code></li>
+<li><code>BUFFER_LD_INDEX</code></li>
+<li><code>GENE_VARIANTS_STORED</code></li>
+<li><code>BUFFER_VARIANTS_STORED</code></li>
+</ul>
+<h3 id="-gene-list"><code>--gene-list</code></h3>
+<pre><code>PCSK9   1   55039446    55064852
+USP24   1   55066358    55215364
+.
+</code></pre>
+<p>A file listing gene start and end positions.
+Contains 4 whitespace separated columns: gene name, chromosome, start position, end position.
+Note that this file must align with the <code>--set-list</code> file for gene-based tests.
+Specifically,</p>
+<ol>
+<li>Gene names in the <code>--gene-list</code> file should match gene names in the <code>--set-list</code> file exactly.</li>
+<li>Any variant in the <code>--set-list</code> must appear within the start position and end position of the LD matrix for that gene: otherwise it will be dropped from the test (unless the <code>--keep-variants-not-in-ld-mat</code> option is specified).</li>
+<li>The start and end position should be inclusive of any variant that could appear in a test.
+In particular, it is not recommended to set the start and end positions based on the variants in the set list.
+If the set list changes, this could result in variants being dropped from a test.</li>
+</ol>
+<p>In the <strong>remeta</strong> repository we provide an example gene list under <code>resources/Ensembl100.GRCh38.chr1_23.gene_list.txt.gz</code> directory.
+This file was created by extracting gene boundaries for protein coding genes annotated in Ensembl release 100.
+An Ensembl GTF file <a href="https://ftp.ensembl.org/pub/release-100/gtf/homo_sapiens/Homo_sapiens.GRCh38.100.gtf.gz">was downloaded from Ensembl</a>;
+start and end positions were extracted from lines with feature <code>gene</code> and the biotype <code>protein_coding</code>.</p>
+<h3 id="-target-pfile-and-buffer-pfile"><code>--target-pfile</code> and <code>--buffer-pfile</code></h3>
+<p>A set of <a href="https://www.cog-genomics.org/plink/2.0/input#pgen">pgen, pvar, and psam</a> files from plink2.</p>
+<h3 id="-genetic-map"><code>--genetic-map</code></h3>
+<p>A genetic map in the SHAPEIT format.
+Contains 3 columns: position, chromosome, and centimorgan.
+Note that genetic maps are available from the <a href="https://github.com/odelaneau/shapeit5">SHAPEIT5 repository</a>.</p>
+<h2 id="miscellaneous-files">Miscellaneous Files</h2>
+<h3 id="-htp"><code>--htp</code></h3>
+<p>A file in <code>htp</code> format, the default output format of <strong>remeta</strong>.
+Output by <strong>regenie</strong> with the <code>--htp</code> option.
+<code>htp</code> files are whitespace separated with the following columns:</p>
+<ul>
+<li><code>Name</code>: Variant name. For <strong>remeta</strong>, single variants must be encoded <code>CHROM:POS:REF:ALT</code>, matching the naming convention of the annotation files.</li>
+<li><code>Chr</code>: Chromosome.</li>
+<li><code>Pos</code>: Position.</li>
+<li><code>Ref</code>: Reference allele.</li>
+<li><code>Alt</code>: Alternate allele.</li>
+<li><code>Cohort</code>: Name of the cohort (e.g. UK Biobank).</li>
+<li><code>Model</code>: Association model.</li>
+<li><code>Effect</code>: Effect size. Note that for binary traits these are odds-ratios, not log odds ratios.</li>
+<li><code>LCI_effect</code>: Lower 95% confidence interval for the effect size.</li>
+<li><code>UCI_effect</code>: Upper 95% confidence interval for the effect size.</li>
+<li><code>Pval</code>: Association p-value.</li>
+<li><code>AAF</code>: Alternate allele frequency.</li>
+<li><code>Num_Cases</code>: Number of cases. For QTs this is the sample size.</li>
+<li><code>Cases_Ref</code>: Number of cases homozygous for the reference allele.</li>
+<li><code>Cases_Het</code>: Number of cases who are heterozygotes.</li>
+<li><code>Cases_Alt</code>: Number of cases homozygous for the alternate allele.</li>
+<li><code>Num_Controls</code>: Number of controls. For QTs this is NA (as are the fields below).</li>
+<li><code>Controls_Ref</code>: Number of controls homozygous for the reference allele.</li>
+<li><code>Controls_Het</code>: Number of controls who are heterozygotes.</li>
+<li><code>Controls_Alt</code>: Number of controls who are homozygous for the alternate allele.</li>
+<li><code>Info</code>: A semi-colon (;) separated list of arbitrary fields. These can be <code>KEY=VALUE</code> pairs or a single field alone.</li>
+</ul>
+<h3 id="-extract-and-exclude"><code>--extract</code> and <code>--exclude</code></h3>
+<p>Files with variant ids (one per line) to include or exclude from meta-analysis.</p>
+<h3 id="-genep-def"><code>--genep-def</code></h3>
+<pre><code>LoF LoF
+NonSyn LoF,missense,LoF_missense
+.
+</code></pre>
+<p>A file defining which masks to combine with ACAT.
+Contains two space-separated columns: the name of the GENEP set, and a comma separated list of masks to include.</p></div>
+        
+        
+    </div>
+
+    
+      <footer class="col-md-12 text-center">
+          
+          
+            <hr>
+            <p>
+            <small>Documentation built with <a href="http://www.mkdocs.org/">MkDocs</a>.</small>
+            </p>
+          
+
+          
+          
+      </footer>
+    
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="../js/bootstrap-3.0.3.min.js"></script>
+
+    
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.0/build/highlight.min.js"></script>
+        
+    <script>hljs.initHighlightingOnLoad();</script>
+    
+
+    <script>var base_url = ".."</script>
+    
+    <script src="../js/base.js"></script>
+    <script src="../search/main.js"></script>
+
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">
+                    <span aria-hidden="true">&times;</span>
+                    <span class="sr-only">Close</span>
+                </button>
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+            </div>
+            <div class="modal-body">
+                <p>
+                    From here you can search these documents. Enter
+                    your search terms below.
+                </p>
+                <form>
+                    <div class="form-group">
+                        <input type="text" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    </body>
+
+</html>
