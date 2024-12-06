@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    
+    
+    <link rel="shortcut icon" href="../img/favicon.ico">
+
+    
+    <title>Tutorial - remeta</title>
+    
+
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.12.0/css/all.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.12.0/css/v4-shims.css">
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/hack-font@3.3.0/build/web/hack.min.css">
+    <link href='//rsms.me/inter/inter.css' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,700italic,400,300,600,700&subset=latin-ext,latin' rel='stylesheet' type='text/css'>
+    <link href="../css/bootstrap-custom.min.css" rel="stylesheet">
+    <link href="../css/base.min.css" rel="stylesheet">
+    <link href="../css/cinder.min.css" rel="stylesheet">
+
+    
+        
+        <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.0/build/styles/github.min.css">
+        
+    
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+            <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+        <![endif]-->
+
+    
+
+     
+</head>
+
+<body>
+
+    <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container">
+
+        <!-- Collapsed navigation -->
+        <div class="navbar-header">
+            <!-- Expander button -->
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            
+
+            <!-- Main title -->
+
+            
+              <a class="navbar-brand" href="..">remeta</a>
+            
+        </div>
+
+        <!-- Expanded navigation -->
+        <div class="navbar-collapse collapse">
+                <!-- Main navigation -->
+                <ul class="nav navbar-nav">
+                
+                
+                    <li >
+                        <a href="..">Home</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../install/">Install</a>
+                    </li>
+                
+                
+                
+                    <li class="active">
+                        <a href="./">Tutorial</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../file_formats/">File Formats</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../documentation/">Documentation</a>
+                    </li>
+                
+                
+                </ul>
+
+            <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="#" data-toggle="modal" data-target="#mkdocs_search_modal">
+                            <i class="fas fa-search"></i> Search
+                        </a>
+                    </li>
+                    <li >
+                        <a rel="prev" href="../install/">
+                            <i class="fas fa-arrow-left"></i> Previous
+                        </a>
+                    </li>
+                    <li >
+                        <a rel="next" href="../file_formats/">
+                            Next <i class="fas fa-arrow-right"></i>
+                        </a>
+                    </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+    <div class="container">
+        
+        
+        <div class="col-md-3"><div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+        <li class="first-level active"><a href="#tutorial">Tutorial</a></li>
+            <li class="second-level"><a href="#construct-reference-ld-matrices">Construct reference LD matrices</a></li>
+                
+            <li class="second-level"><a href="#generate-summary-statistics">Generate summary statistics</a></li>
+                
+                <li class="third-level"><a href="#regenie-step-1">regenie step 1</a></li>
+                <li class="third-level"><a href="#regenie-step-2">regenie step 2</a></li>
+            <li class="second-level"><a href="#meta-analysis-with-remeta">Meta-analysis with remeta</a></li>
+                
+                <li class="third-level"><a href="#run-single-variant-meta-analysis">Run single-variant meta-analysis</a></li>
+                <li class="third-level"><a href="#run-gene-based-meta-analysis">Run gene-based meta-analysis</a></li>
+                <li class="third-level"><a href="#conditional-analysis">Conditional analysis</a></li>
+                <li class="third-level"><a href="#merge-and-compute-gene_p">Merge and compute GENE_P</a></li>
+    </ul>
+</div></div>
+        <div class="col-md-9" role="main">
+
+<h1 id="tutorial">Tutorial</h1>
+<p>Meta-analysis with <strong>remeta</strong> requires 3 steps:</p>
+<ol>
+<li>Constructing per cohort reference LD matrices with <strong>remeta</strong>.</li>
+<li>Computing single variant summary statistics in <strong>regenie</strong>.</li>
+<li>Running meta-analysis in <strong>remeta</strong>.</li>
+</ol>
+<p>In this example we generate summary statistics for 2 cohorts in <strong>regenie</strong>,
+then meta-analyze them with <strong>remeta</strong>.
+Example data was simulated with plink2 and is available in the <code>example</code> folder in the <a href="https://github.com/rgcgithub/remeta"><strong>remeta</strong> repository</a>.</p>
+<p>For more details on installing and running <strong>regenie</strong> please visit the <a href="https://rgcgithub.github.io/regenie"><strong>regenie</strong> documentation</a>.</p>
+<p align="center" style="font-weight: bold;">
+Main remeta workflow
+</p>
+<p><img alt="remeta workflow" src="../img/remeta_workflow.png" title="remeta workflow" /></p>
+<h2 id="construct-reference-ld-matrices">Construct reference LD matrices</h2>
+<p><strong>remeta</strong> uses per cohort reference LD matrices for gene-based testing.
+These matrices only need to be generated once and can be reused across traits.
+<strong>remeta</strong> takes as input plink2 <a href="https://www.cog-genomics.org/plink/2.0/input#pgen">pgen/pvar/psam</a> files.
+It outputs a set of three files per chromosome: <code>$PREFIX.remeta.gene.ld</code>, <code>$PREFIX.remeta.buffer.ld</code> <code>$PREFIX.remeta.ld.idx.gz</code>.
+The index file <code>$PREFIX.remeta.ld.idx.gz</code> is human readable and contains a list of all the variants in the LD matrix of each gene.</p>
+<p>For marginal testing, only the LD between exome variants is required.
+A plink2 dataset of exome variants is passed to <strong>remeta</strong> using the <code>--target-pfile $PLINK2_PREFIX</code> along with the <code>--skip-buffer</code> flag.
+LD matrices for marginal testing are typically small and quick to compute.
+In addition to exome variants, gene locations are specified in a <code>--gene-list</code> file that have four columns: <code>GENE_SET_NAME CHR GENE_START_POS GENE_END_POS</code>.
+See <a href="../file_formats/"><strong>File Formats</strong></a> for more details along with an example file.</p>
+<p><strong>remeta</strong> can also perform gene-based tests conditional on variants in a buffer region around each gene.
+Conditional analysis requires the LD between exome variants and the LD of variants in the buffer.
+Imputed variants can be a good choice for conditional analysis.
+Any variant in a gene or buffer region can be used for conditional analysis so long as it is stored in the LD matrix.</p>
+<p align="center" style="font-weight: bold;">
+How remeta stores LD matrices for conditional analysis
+</p>
+
+<p align="center">
+<img src="/img/ld_overview.png" alt="LD diagram" width="70%" />
+</p>
+
+<p><strong>remeta</strong> has two options for computing the LD of exome variants and imputed variants depending on how they are stored in the input plink2 files.
+If exome variants and imputed variants are in the same <code>pgen/pvar/psam</code> file,
+then can be passed to remeta using the <code>--target-pfile</code> argument, and exome variants specified with the <code>--target-extract</code> argument.
+If exome and imputed variants are stored in separate <code>pgen/pvar/psam</code> files,
+then they can be passed to remeta using the <code>--target-pfile</code> and <code>--buffer-pfile</code> arguments.</p>
+<p>Buffer regions can be specified in megabases or centimorgan using the <code>--buffer-mb</code> or <code>--buffer-cm</code> arguments respectively.
+Note that <code>--buffer-cm</code> requires a genetic map.
+See <a href="../file_formats/"><strong>File Formats</strong></a> for more details about the genetic map.</p>
+<p>In the example below, we use simulated data for 500 samples and 2000 variants from 2 cohorts.
+Genetic data was simulated using the <code>--dummy</code> flag in plink2.
+The files <code>example.${cohort}.step2.{pgen, pvar, psam}</code> are the simulated genotypes.
+A subset of simulated genotypes was chosen to represent exome variants, specified in the <code>example/example.${cohort}.step2.exome</code> variant list.
+Here step 2 refers to the files used when running <strong>regenie</strong> step 2.</p>
+<pre><code class="language-bash">for cohort in cohort1 cohort2; do
+  for chr in 1 2; do
+    ./remeta compute-ref-ld \
+      --target-pfile example/example.${cohort}.step2 \
+      --target-extract example/example.${cohort}.step2.exome \
+      --gene-list example/example.genelist \
+      --chr ${chr} \
+      --out example.${cohort}.chr${chr} \
+      --threads `nproc` \
+      --buffer-mb 1
+  done
+done
+</code></pre>
+<h2 id="generate-summary-statistics">Generate summary statistics</h2>
+<p>Association statistics are computed in <strong>regenie</strong> in a two step framework.
+<strong>regenie</strong> step 1 fits a whole genome regression model on a subset of variants to account for relatedness, genetic ancestry, and polygenicity.
+When preparing summary statistics for <strong>remeta</strong>, these will typically be a subset of common imputed variants.
+<strong>regenie</strong> step 2 performs association testing across all variants using the output of step 1.
+The output of step 2 is passed to <strong>remeta</strong> for meta-analysis.</p>
+<h3 id="regenie-step-1">regenie step 1</h3>
+<p>For this example we simulated 500 samples and 1000 variants with plink2 to represent a subset of variants used in step 1.
+These files are: <code>example/example.${cohort}.step1.{pgen,pvar,psam}</code>.
+This step outputs the files <code>${cohort}.step1_1.loco</code> and <code>${cohort}.step1_pred.list</code> used by <strong>regenie</strong> step 2.</p>
+<pre><code class="language-bash">for cohort in cohort1 cohort2; do
+  regenie \
+    --step 1 \
+    --pgen example/example.${cohort}.step1 \
+    --phenoFile example/example.${cohort}.pheno.bt.tsv \
+    --phenoCol Y \
+    --bsize 100 \
+    --bt --lowmem \
+    --lowmem-prefix tmp_rg \
+    --out ${cohort}.step1
+done
+</code></pre>
+<h3 id="regenie-step-2">regenie step 2</h3>
+<p>In this step we use two sets of plink2 files, <code>example/example.${cohort}.step2.{pgen,pvar,psam}</code>, to perform association testing.
+These are the same files used to generate the reference LD matrices.
+Note that the <code>--htp $COHORT_NAME</code> options and <code>--minMAC 1</code> options should be used during step 2.
+The first option outputs a summary statistics file in <code>htp</code> format.
+This format has additional meta-data required by <strong>remeta</strong>.
+The second option ensures all polymorphic variants are available for gene-based tests.</p>
+<pre><code class="language-bash">for cohort in cohort1 cohort2; do
+  regenie \
+    --step 2 \
+    --pgen example/example.${cohort}.step2 \
+    --phenoFile example/example.${cohort}.pheno.bt.tsv \
+    --phenoCol Y \
+    --bt \
+    --firth --approx \
+    --pred ${cohort}.step1_pred.list \
+    --htp ${cohort} \
+    --bsize 200 \
+    --minMAC 1 \
+    --out ${cohort}.step2
+done
+</code></pre>
+<p>For good performance in <strong>remeta</strong> we recommended compressing and indexing the output HTP files with bgzip and tabix:</p>
+<pre><code class="language-bash">for cohort in cohort1 cohort2; do
+  bgzip ${cohort}.step2_Y.regenie
+  tabix -S1 -s2 -b3 -e3 ${cohort}.step2_Y.regenie.gz
+done
+</code></pre>
+<h2 id="meta-analysis-with-remeta">Meta-analysis with <strong>remeta</strong></h2>
+<p><img alt="remeta overview" src="../img/remeta_overview.png" title="remeta overview" /></p>
+<p>Meta-analysis with <strong>remeta</strong> has 3 steps:</p>
+<ol>
+<li>Run single-variant meta-analysis.</li>
+<li>Run gene-based meta-analysis across chromosomes.</li>
+<li>Merge files and compute GENE_P.</li>
+</ol>
+<h3 id="run-single-variant-meta-analysis">Run single-variant meta-analysis</h3>
+<p><strong>remeta</strong> performs meta-analysis of single variants using effect size meta-analysis.
+In this example, the two <code>htp</code> files generated by <strong>regenie</strong> as passed to the <code>--htp</code> argument,
+and cohort names passed to the <code>--cohort</code> argument.
+<strong>remeta</strong> outputs an <code>htp</code> file called <code>example.esma.remeta.gz</code>.</p>
+<pre><code class="language-bash">./remeta esma \
+  --htp cohort1.step2_Y.regenie.gz cohort2.step2_Y.regenie.gz \
+  --cohorts cohort1 cohort2 \
+  --trait-name Y \
+  --trait-type bt \
+  --out example
+</code></pre>
+<h3 id="run-gene-based-meta-analysis">Run gene-based meta-analysis</h3>
+<p>Gene-based tests in <strong>remeta</strong> are defined using the same annotation files as <strong>regenie</strong>.
+A <code>--set-list</code> file defines gene sets, an <code>--anno-file</code> defines variant annotations, and a <code>--mask-def</code> file defines groups of annotations in a mask.
+See <a href="../file_formats/">File Formats</a> for more information.</p>
+<p><strong>remeta</strong> provides a small utility to index bgzipped annotation files.
+Indexing annotations can help improve performance for large-scale analyses.
+This can be achieved in two commands.</p>
+<pre><code class="language-bash">bgzip example/example.annotations
+./remeta index-anno --file example/example.annotations.gz
+</code></pre>
+<p>When running gene-based meta-analysis, exome variants should be specified using <code>--extract</code> argument to avoid including imputed variants in gene-based tests.
+Alternatively, input <code>htp</code> files with the <code>SOURCE</code> info field can be used to identify variants to include in tests.
+For example, if exome variants have the info field <code>SOURCE=EXOME</code>, then you can pass the <code>--sources EXOME</code> flag to <strong>remeta</strong> to extract them.</p>
+<p>The output of this step are two files in <code>htp</code> format: <code>example.chr{1, 2}.gene.remeta.gz</code>.</p>
+<pre><code class="language-bash">for chr in 1 2; do
+  ./remeta gene \
+    --htp cohort1.step2_Y.regenie.gz cohort2.step2_Y.regenie.gz \
+    --ld-prefix example.cohort1.chr${chr} example.cohort2.chr${chr} \
+    --cohorts cohort1 cohort2 \
+    --extract example/example.exome \
+    --chr ${chr} \
+    --set-list example/example.setlist \
+    --anno-file example/example.annotations.gz \
+    --mask-def example/example.masks \
+    --trait-name Y \
+    --trait-type bt \
+    --burden-aaf-bins 0.9 0.99 \
+    --acatv-max-aaf 0.99 \
+    --skato-max-aaf 0.99 \
+    --out example.chr${chr}
+done
+</code></pre>
+<h3 id="conditional-analysis">Conditional analysis</h3>
+<p>Conditional analysis is performed with the <code>--condition-list</code> and <code>--condition-htp</code> arguments.
+<code>--condition-list</code> takes a file with a list of variant IDs to condition on.
+<code>--condition-htp</code> contains the summary statistics of the variants to be conditioned on,
+which may be the same files passed to <code>--htp</code>.
+Any variant in a gene or buffer region can be used for conditional analysis.</p>
+<pre><code class="language-bash">for chr in 1 2; do
+  ./remeta gene \
+    --htp cohort1.step2_Y.regenie.gz cohort2.step2_Y.regenie.gz \
+    --condition-list example/example.condition_list \
+    --condition-htp cohort1.step2_Y.regenie.gz cohort2.step2_Y.regenie.gz \
+    --ld-prefix example.cohort1.chr${chr} example.cohort2.chr${chr} \
+    --cohorts cohort1 cohort2 \
+    --extract example/example.exome \
+    --chr ${chr} \
+    --set-list example/example.setlist \
+    --anno-file example/example.annotations \
+    --mask-def example/example.masks \
+    --trait-name Y \
+    --trait-type bt \
+    --burden-aaf-bins 0.9 0.99 \
+    --acatv-max-aaf 0.99 \
+    --skato-max-aaf 0.99 \
+    --out example.conditional.chr${chr}
+done
+</code></pre>
+<h3 id="merge-and-compute-gene_p">Merge and compute GENE_P</h3>
+<p>Per chromosome files and additional meta-analysis results can be merged together.
+Additionally p-values per gene are computed by combining p-values across tests with ACAT.</p>
+<pre><code class="language-bash">./remeta merge \
+  --htp example.chr1.gene.remeta.gz example.chr2.gene.remeta.gz example.esma.remeta.gz \
+  --genep-def example/example.genepdef \
+  --out example
+</code></pre></div>
+        
+        
+    </div>
+
+    
+      <footer class="col-md-12 text-center">
+          
+          
+            <hr>
+            <p>
+            <small>Documentation built with <a href="http://www.mkdocs.org/">MkDocs</a>.</small>
+            </p>
+          
+
+          
+          
+      </footer>
+    
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="../js/bootstrap-3.0.3.min.js"></script>
+
+    
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.0/build/highlight.min.js"></script>
+        
+    <script>hljs.initHighlightingOnLoad();</script>
+    
+
+    <script>var base_url = ".."</script>
+    
+    <script src="../js/base.js"></script>
+    <script src="../search/main.js"></script>
+
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">
+                    <span aria-hidden="true">&times;</span>
+                    <span class="sr-only">Close</span>
+                </button>
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+            </div>
+            <div class="modal-body">
+                <p>
+                    From here you can search these documents. Enter
+                    your search terms below.
+                </p>
+                <form>
+                    <div class="form-group">
+                        <input type="text" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    </body>
+
+</html>

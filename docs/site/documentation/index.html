@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    
+    
+    <link rel="shortcut icon" href="../img/favicon.ico">
+
+    
+    <title>Documentation - remeta</title>
+    
+
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.12.0/css/all.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.12.0/css/v4-shims.css">
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/hack-font@3.3.0/build/web/hack.min.css">
+    <link href='//rsms.me/inter/inter.css' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,700italic,400,300,600,700&subset=latin-ext,latin' rel='stylesheet' type='text/css'>
+    <link href="../css/bootstrap-custom.min.css" rel="stylesheet">
+    <link href="../css/base.min.css" rel="stylesheet">
+    <link href="../css/cinder.min.css" rel="stylesheet">
+
+    
+        
+        <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.0/build/styles/github.min.css">
+        
+    
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+            <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+        <![endif]-->
+
+    
+
+     
+</head>
+
+<body>
+
+    <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container">
+
+        <!-- Collapsed navigation -->
+        <div class="navbar-header">
+            <!-- Expander button -->
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            
+
+            <!-- Main title -->
+
+            
+              <a class="navbar-brand" href="..">remeta</a>
+            
+        </div>
+
+        <!-- Expanded navigation -->
+        <div class="navbar-collapse collapse">
+                <!-- Main navigation -->
+                <ul class="nav navbar-nav">
+                
+                
+                    <li >
+                        <a href="..">Home</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../install/">Install</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../tutorial/">Tutorial</a>
+                    </li>
+                
+                
+                
+                    <li >
+                        <a href="../file_formats/">File Formats</a>
+                    </li>
+                
+                
+                
+                    <li class="active">
+                        <a href="./">Documentation</a>
+                    </li>
+                
+                
+                </ul>
+
+            <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="#" data-toggle="modal" data-target="#mkdocs_search_modal">
+                            <i class="fas fa-search"></i> Search
+                        </a>
+                    </li>
+                    <li >
+                        <a rel="prev" href="../file_formats/">
+                            <i class="fas fa-arrow-left"></i> Previous
+                        </a>
+                    </li>
+                    <li class="disabled">
+                        <a rel="next" >
+                            Next <i class="fas fa-arrow-right"></i>
+                        </a>
+                    </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+    <div class="container">
+        
+        
+        <div class="col-md-3"><div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+        <li class="first-level active"><a href="#documentation">Documentation</a></li>
+            <li class="second-level"><a href="#remeta-gene">remeta gene</a></li>
+                
+                <li class="third-level"><a href="#options">Options</a></li>
+            <li class="second-level"><a href="#remeta-esma">remeta esma</a></li>
+                
+                <li class="third-level"><a href="#options_1">Options</a></li>
+            <li class="second-level"><a href="#remeta-pvma">remeta pvma</a></li>
+                
+                <li class="third-level"><a href="#options_2">Options</a></li>
+            <li class="second-level"><a href="#remeta-merge">remeta merge</a></li>
+                
+                <li class="third-level"><a href="#options_3">Options</a></li>
+            <li class="second-level"><a href="#remeta-compute-ref-ld">remeta compute-ref-ld</a></li>
+                
+                <li class="third-level"><a href="#options_4">Options</a></li>
+            <li class="second-level"><a href="#remeta-index-anno">remeta index-anno</a></li>
+                
+                <li class="third-level"><a href="#options_5">Options</a></li>
+            <li class="second-level"><a href="#references">References</a></li>
+                
+    </ul>
+</div></div>
+        <div class="col-md-9" role="main">
+
+<h1 id="documentation">Documentation</h1>
+<p>This pages documents the various options for each subprogram in <strong>remeta</strong>.</p>
+<pre><code class="language-none">Usage: remeta [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -h [ --help ]         Print this message and exit.
+  -v [ --version ]      Print version.
+
+Commands:
+
+* Meta-Analyses
+  pvma         Perform p-value meta-analysis.
+  esma         Perform effect size meta-analysis.
+  gene         Perform burden, SKATO, and ACATV meta-analysis.
+  merge        Merge results and compute meta-analysis GENEP.
+
+* Utilities
+  compute-ref-ld   Compute a reference LD matrix from plink2 pgen/pvar/psam files.
+  index-anno       Create an index from a bgzipped REGENIE annotation file.
+</code></pre>
+<h2 id="remeta-gene">remeta gene</h2>
+<p>Perform burden<sup id="fnref:1"><a class="footnote-ref" href="#fn:1">1</a></sup>, SKATO<sup id="fnref:2"><a class="footnote-ref" href="#fn:2">2</a></sup>, and ACATV<sup id="fnref:3"><a class="footnote-ref" href="#fn:3">3</a></sup> meta-analysis.</p>
+<p><strong>Marginal testing</strong></p>
+<p>Gene-based meta-analysis requires LD matrices computed by <code>remeta compute-ref-ld</code>.
+Each matrix is represented by three files: <code>$PREFIX.remeta.gene.ld</code>, <code>$PREFIX.remeta.buffer.ld</code> <code>$PREFIX.remeta.ld.idx.gz</code>.
+The prefix of each file is passed to the <code>--ld-prefixes</code> argument.
+These must be in the same order as the <code>--htp</code> and <code>--cohorts</code> arguments.</p>
+<pre><code class="language-none">remeta gene \
+  --htp HTP1 HTP2 ... \
+  --ld-prefixes LD_FILE1 LD_FILE2 ... \
+  --cohorts COHORT1 COHORT2 ... \
+  --anno-file ANNO_FILE \
+  --set-list SET_LIST_FILE \
+  --mask-def MASK_DEF_FILE \
+  --trait-name MY_TRAIT \
+  --trait-type TYPE \
+  --out OUT_PREFIX
+</code></pre>
+<p><strong>Conditional analysis</strong></p>
+<p>Conditional analysis can be performed for gene-based tests using the <code>--condition-htp</code> and <code>--condition-list</code> arguments.
+The <code>--condition-htp</code> argument takes one HTP file per cohort and can be the same files passed to <code>--htp</code>.
+The <code>--condition-list</code> argument takes a file with variant IDs to condition on (one variant ID per line).</p>
+<pre><code class="language-none">remeta gene \
+  --htp HTP1 HTP2 ... \
+  --ld-prefixes LD_FILE1 LD_FILE2 ... \
+  --cohorts COHORT1 COHORT2 ... \
+  --anno-file ANNO_FILE \
+  --set-list SET_LIST_FILE \
+  --mask-def MASK_DEF_FILE \
+  --trait-name MY_TRAIT \
+  --trait-type TYPE \
+  --out OUT_PREFIX \
+  --condition-list VARIANT_ID_FILE \
+  --condition-htp HTP1 HTP2 ...
+</code></pre>
+<p><strong>Running without LD matrices</strong></p>
+<p><code>remeta gene</code> can be run without the required LD matrices by specifying the <code>--ignore-mask-ld</code> and <code>--keep-variants-not-in-ld-mat</code> flags.
+Note that it is not possible to perform conditional analysis without LD matrices.</p>
+<pre><code class="language-none">remeta gene \
+  --htp HTP1 HTP2 ... \
+  --ignore-mask-ld \
+  --keep-variants-not-in-ld-mat \
+  --cohorts COHORT1 COHORT2 ... \
+  --anno-file ANNO_FILE \
+  --set-list SET_LIST_FILE \
+  --mask-def MASK_DEF_FILE \
+  --trait-name MY_TRAIT \
+  --trait-type TYPE \
+  --out OUT_PREFIX
+</code></pre>
+<p><strong>Specifying allele frequencies</strong></p>
+<p><strong>remeta</strong> provides several options to specify allele frequencies used to build masks.
+By default, <strong>remeta</strong> computes on overall allele frequency per variant based on all cohorts where the variant was observed.
+Alternatively <strong>remeta</strong> can use a maximum allele frequency observed across cohorts with the <code>--af-strategy max</code> argument.
+Lastly, <strong>remeta</strong> allele frequencies can be specifed in an allele frequency file using the <code>--aaf-file</code> argument.
+See <a href="../file_formats/">File Formats</a> for a list of available formats.</p>
+<h3 id="options">Options</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Argument</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--htp</code></td>
+<td>FILE1 FILE2 ...</td>
+<td>Required</td>
+<td>List of HTP input files.</td>
+</tr>
+<tr>
+<td><code>--ld-prefixes</code></td>
+<td>FILE1 FILE2 ...</td>
+<td>Required</td>
+<td>Prefix to <code>.remeta.gene.ld</code>, <code>.remeta.buffer.ld</code>, and <code>.remeta.ld.idx.gz</code> files per cohort.</td>
+</tr>
+<tr>
+<td><code>--cohorts</code></td>
+<td>STRING1 STRING2 ...</td>
+<td>Required</td>
+<td>List of cohort names per file.</td>
+</tr>
+<tr>
+<td><code>--anno-file</code></td>
+<td>FILE</td>
+<td>Required</td>
+<td>File with variant annotations. Bgzipped and and indexed with <code>index-anno</code>.</td>
+</tr>
+<tr>
+<td><code>--set-list</code></td>
+<td>FILE</td>
+<td>Required</td>
+<td>Regenie set-list file.</td>
+</tr>
+<tr>
+<td><code>--mask-def</code></td>
+<td>FILE</td>
+<td>Required</td>
+<td>Regenie mask-def file.</td>
+</tr>
+<tr>
+<td><code>--trait-name</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Name of trait.</td>
+</tr>
+<tr>
+<td><code>--trait-type</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>One of BT or QT.</td>
+</tr>
+<tr>
+<td><code>--out</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Prefix for output files.</td>
+</tr>
+<tr>
+<td><code>--burdern-aaf-bins</code> (=0.0001 0.001 0.005 0.01)</td>
+<td>FLOAT1 FLOAT2 ...</td>
+<td>Optional</td>
+<td>Allele frequency cutoffs for building masks for burden testing.</td>
+</tr>
+<tr>
+<td><code>--burden-singleton-def</code> (=within)</td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Define singletons for the singleton mask within cohorts or across cohorts. One of 'within', 'across' or 'omit'.</td>
+</tr>
+<tr>
+<td><code>--burden-weight-strategy (=uniform)</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Strategy to compute variant weights for burden testing. One of <code>beta</code> or <code>uniform</code>.</td>
+</tr>
+<tr>
+<td><code>--skip-burden</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Do not run burden testing.</td>
+</tr>
+<tr>
+<td><code>--skato-max-aaf (=0.01)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Maximum allele frequency for a variant to be included in mask for SKATO.</td>
+</tr>
+<tr>
+<td><code>--skato-rho-values (=0 0.01 0.04 0.09 0.16 0.25 0.5 1)</code></td>
+<td>FLOAT1 FLOAT2 ...</td>
+<td>Optional</td>
+<td>Rho values for SKATO.</td>
+</tr>
+<tr>
+<td><code>--skato-min-aac (=1)</code></td>
+<td>INT</td>
+<td>Optional</td>
+<td>Minimum AAC across cohorts for a variant to be included in a mask for SKATO.</td>
+</tr>
+<tr>
+<td><code>--skato-weight-strategy</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Strategy to compute variant weights for SKATO. One of 'beta' or 'uniform'.</td>
+</tr>
+<tr>
+<td><code>--skip-skato</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Do not run SKATO.</td>
+</tr>
+<tr>
+<td><code>--acatv-max-aaf (=0.01)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Maximum allele frequency for a variant to be included in mask for ACATV.</td>
+</tr>
+<tr>
+<td><code>--acatv-min-aac (=5)</code></td>
+<td>INT</td>
+<td>Optional</td>
+<td>Minimum AAC across cohorts for a variant to be included in a mask for ACATV.</td>
+</tr>
+<tr>
+<td><code>--acatv-weight-strategy</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Strategy to compute variant weights for ACATV. One of 'beta' or 'uniform'.</td>
+</tr>
+<tr>
+<td><code>--skip-acatv</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Do not run ACATV.</td>
+</tr>
+<tr>
+<td><code>--condition-list</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>File with variants to condition on (one per line).</td>
+</tr>
+<tr>
+<td><code>--condition-htp</code></td>
+<td>FILE1 FILE2 ...</td>
+<td>Optional</td>
+<td>List of HTP files with summary statistics of conditional variants per cohort.</td>
+</tr>
+<tr>
+<td><code>--af-strategy (=overall)</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Strategy to compute variant allele frequences. One of 'overall' or 'max'.</td>
+</tr>
+<tr>
+<td><code>--aaf-file</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Use precomputed alternate allele frequencies from an external file.</td>
+</tr>
+<tr>
+<td><code>--spa-pval =(0.05)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply SPA when the burden p-value is below spa-pval (BTs only, not applied to ACATV).</td>
+</tr>
+<tr>
+<td><code>--spa-ccr =(0.01)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply SPA when # cases / # controls &lt; spa-ccr (BTs only, not applied to ACATV).</td>
+</tr>
+<tr>
+<td><code>--chr</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Run only on specifed chromosome.</td>
+</tr>
+<tr>
+<td><code>--gene</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Run only on specified gene.</td>
+</tr>
+<tr>
+<td><code>--extract</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Include only the variants with IDs listed in this file (one per line).</td>
+</tr>
+<tr>
+<td><code>--exclude</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Exclude variants with IDs listed in this file (one per line).</td>
+</tr>
+<tr>
+<td><code>--sources</code></td>
+<td>STRING1 STRING2 ...</td>
+<td>Optional</td>
+<td>Only meta-analyze variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...</td>
+</tr>
+<tr>
+<td><code>--write-cohort-burden-tests</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Compute and store per cohort burden tests (ignores changes to --burden-weight-strategy).</td>
+</tr>
+<tr>
+<td><code>--write-mask-snplist</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Write file with list of variants included in each mask.</td>
+</tr>
+<tr>
+<td><code>--recompute-score</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Recompute score statistics from betas and standard errors when missing in input.</td>
+</tr>
+<tr>
+<td><code>--keep-variants-not-in-ld-mat</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Keep variants absent from the LD matrix instead of dropping them.</td>
+</tr>
+<tr>
+<td><code>--ignore-mask-ld</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Ignore LD between variants in a mask.</td>
+</tr>
+<tr>
+<td><code>--threads (=1)</code></td>
+<td>INT</td>
+<td>Optional</td>
+<td>Number of threads to use.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="remeta-esma">remeta esma</h2>
+<p>Perform effect size meta-analysis (i.e. inverse variance meta-analysis).</p>
+<p><strong>Effect-size meta-analysis of single variants</strong></p>
+<pre><code class="language-none">remeta esma \
+  --htp HTP1 HTP2 ... \
+  --cohorts COHORT1 COHORT1 ... \
+  --trait-name MY_TRAIT \
+  --trait-type TYPE \
+  --out OUT_PREFIX
+</code></pre>
+<h3 id="options_1">Options</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Argument</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--htp</code></td>
+<td>FILE1 FILE2 ...</td>
+<td>Required</td>
+<td>List of HTP input files.</td>
+</tr>
+<tr>
+<td><code>--cohorts</code></td>
+<td>STRING1 STRING2 ...</td>
+<td>Required</td>
+<td>List of cohort names per file.</td>
+</tr>
+<tr>
+<td><code>--trait-name</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Name of trait.</td>
+</tr>
+<tr>
+<td><code>--trait-type</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>One of BT or QT.</td>
+</tr>
+<tr>
+<td><code>--out</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Prefix for output files.</td>
+</tr>
+<tr>
+<td><code>--chr</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Run only on chromosome CHR.</td>
+</tr>
+<tr>
+<td><code>--extract</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Include only the variants with IDs listed in this file (one per line).</td>
+</tr>
+<tr>
+<td><code>--exclude</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Exclude variants with IDs listed in this file (one per line).</td>
+</tr>
+<tr>
+<td><code>--sources</code></td>
+<td>STRING1 STRING2 ...</td>
+<td>Optional</td>
+<td>Only meta-analyze variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...</td>
+</tr>
+<tr>
+<td><code>--source-def</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Two column file mapping long SOURCE info fields to shorter SOURCE info fields.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="remeta-pvma">remeta pvma</h2>
+<p>Perform p-value meta-analysis with either Stouffer's <sup id="fnref:4"><a class="footnote-ref" href="#fn:4">4</a></sup> method or Fisher's method <sup id="fnref:5"><a class="footnote-ref" href="#fn:5">5</a></sup>.
+Does not currently use effect direction.
+Primary use case is to meta-analyze ACATV, SKATO, and SBAT from <strong>regenie</strong> using standard meta-analysis.</p>
+<p>It is recommended to run this command with the <code>--skip-beta</code> flag to avoid meta-analyzing single variants with both <code>pvma</code> and  <code>esma</code>.</p>
+<p><strong>P-value meta-analysis of ACATV, SKATO, and SBAT (if ran in regenie)</strong></p>
+<pre><code class="language-none">remeta pvma \
+  --htp HTP1 HTP2 ... \
+  --cohorts COHORT1 COHORT1 ... \
+  --trait-name MY_TRAIT \
+  --trait-type TYPE \
+  --out OUT_PREFIX \
+  --skip-beta \
+  --method stouffers
+</code></pre>
+<h3 id="options_2">Options</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Argument</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--htp</code></td>
+<td>FILE1 FILE2 ...</td>
+<td>Required</td>
+<td>List of HTP input files.</td>
+</tr>
+<tr>
+<td><code>--cohorts</code></td>
+<td>STRING1 STRING2 ...</td>
+<td>Required</td>
+<td>List of cohort names per file.</td>
+</tr>
+<tr>
+<td><code>--trait-name</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Name of trait.</td>
+</tr>
+<tr>
+<td><code>--trait-type</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>One of BT or QT.</td>
+</tr>
+<tr>
+<td><code>--out</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Prefix for output files.</td>
+</tr>
+<tr>
+<td><code>--method (=stouffers)</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>One of <code>stouffers</code> or <code>fishers</code>.</td>
+</tr>
+<tr>
+<td><code>--unweighted</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Omit sample size weighting (affects stouffers only).</td>
+</tr>
+<tr>
+<td><code>--chr</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Run only on chromosome CHR.</td>
+</tr>
+<tr>
+<td><code>--extract</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Include only the variants with IDs listed in this file (one per line).</td>
+</tr>
+<tr>
+<td><code>--exclude</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Exclude variants with IDs listed in this file (one per line).</td>
+</tr>
+<tr>
+<td><code>--skip-beta</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Skip entries with an effect size estimate.</td>
+</tr>
+<tr>
+<td><code>--sources</code></td>
+<td>STRING1 STRING2 ...</td>
+<td>Optional</td>
+<td>Only meta-analyze variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...</td>
+</tr>
+<tr>
+<td><code>--source-def</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Two column file mapping long SOURCE info fields to shorter SOURCE info fields.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="remeta-merge">remeta merge</h2>
+<p>Merge results and compute meta-analysis GENE_P <sup id="fnref:6"><a class="footnote-ref" href="#fn:6">6</a></sup>.</p>
+<p><strong>Compute GENE_P from remeta's gene-based tests</strong></p>
+<pre><code class="language-none">remeta merge \
+  --htp PVMA_HTP ESMA_HTP GENE_HTP1 ... GENE_HTP23  \
+  --genep-def GENEP_DEF_FILE \
+  --out OUT_PREFIX
+</code></pre>
+<p><strong>Compute GENE_P from regenie's gene-based tests (QT with additive model)</strong></p>
+<pre><code class="language-none">remeta merge \
+  --htp GENE_HTP1 ... GENE_HTP23  \
+  --genep-def GENEP_DEF_FILE \
+  --burden-model ADD-WGR-LR \
+  --acatv-model ADD-WGR-ACATV \
+  --skato-model ADD-WGR-SKATO-ACAT \
+  --include-sbat \
+  --out OUT_PREFIX
+</code></pre>
+<p><strong>Compute GENE_P from regenie's gene-based test (BT with additive model using Firth regressoin)</strong></p>
+<pre><code class="language-none">remeta merge \
+  --htp GENE_HTP1 ... GENE_HTP23  \
+  --genep-def GENEP_DEF_FILE \
+  --burden-model ADD-WGR-FIRTH \
+  --acatv-model ADD-WGR-ACATV \
+  --skato-model ADD-WGR-SKATO-ACAT \
+  --include-sbat \
+  --out OUT_PREFIX
+</code></pre>
+<h3 id="options_3">Options</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Argument</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--htp</code></td>
+<td>FILE1 FILE2 ...</td>
+<td>Required</td>
+<td>List of HTP input files.</td>
+</tr>
+<tr>
+<td><code>--out</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Prefix for output files.</td>
+</tr>
+<tr>
+<td><code>--genep-def</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>File with masks to group for GENE_P.</td>
+</tr>
+<tr>
+<td><code>--chr</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Run only on specified chromosome.</td>
+</tr>
+<tr>
+<td><code>--burden-model (=REMETA-BURDEN-META)</code></td>
+<td>STRING</td>
+<td>Model column to collapse burden p-values.</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--acatv-model (=REMETA-ACATV-META)</code></td>
+<td>STRING</td>
+<td>Model column to collapse ACATV p-values.</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--skato-model (=REMETA-SKATO-META)</code></td>
+<td>STRING</td>
+<td>Model column to collapse SKATO p-values.</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--include-sbat</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Include SBAT PVMA in GENE_P if available.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="remeta-compute-ref-ld">remeta compute-ref-ld</h2>
+<p>Compute reference LD matrices from plink2 pgen/pvar/psam files.</p>
+<p><strong>Reference LD for marginal testing</strong></p>
+<pre><code class="language-none">remeta compute-ref-ld \
+  --target-pfile PFILE \
+  --gene-list GENE_LIST_FILE \
+  --skip-buffer \
+  --out OUT_PREFIX
+</code></pre>
+<p><strong>Reference LD matrices for conditional analysis</strong></p>
+<p>If imputed variants are in a separate file from the WES variants:</p>
+<pre><code class="language-none">remeta compute-ref-ld \
+  --target-pfile WES_PFILE \
+  --buffer-pfile IMPUTED_PFILE \
+  --gene-list GENE_LIST_FILE \
+  --buffer-mb 1 \
+  --out OUT_PREFIX
+</code></pre>
+<p>If imputed variants are in the same file as the WES variants:</p>
+<pre><code class="language-none">remeta compute-ref-ld \
+  --target-pfile COMBINED_PFILE \
+  --target-extract WES_VARIANT_LIST \
+  --gene-list GENE_LIST_FILE \
+  --buffer-mb 1 \
+  --out OUT_PREFIX
+</code></pre>
+<p>Note that buffer regions can also be defined in centimorgans using the <code>--buffer-cm</code> option. This requires the <code>--genetic-map</code> argument with a genetic map file in the <a href="https://github.com/odelaneau/shapeit5/tree/main/resources/maps/b38">SHAPEIT format</a>.</p>
+<h3 id="options_4">Options</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Argument</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--target-pfile</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Prefix to pgen/pvar/psam files in target regions (typically WES).</td>
+</tr>
+<tr>
+<td><code>--gene-list</code></td>
+<td>FILE</td>
+<td>Required</td>
+<td>List of genes to include in LD matrix in four column format: GENE_NAME CHR START END.</td>
+</tr>
+<tr>
+<td><code>--chr</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Chromosome to run.</td>
+</tr>
+<tr>
+<td><code>--out</code></td>
+<td>STRING</td>
+<td>Required</td>
+<td>Prefix for output files.</td>
+</tr>
+<tr>
+<td><code>--buffer-pfile</code></td>
+<td>STRING</td>
+<td>Optional</td>
+<td>Prefix to pgen/pvar/psam files to use for buffer regions (typically array or imputed genotypes).</td>
+</tr>
+<tr>
+<td><code>--buffer-mb</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Buffer in Mb around each gene to search for variants to include LD file.</td>
+</tr>
+<tr>
+<td><code>--buffer-cm</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Buffer in cM around each gene to search for variants to include in LD file (requires a genetic map).</td>
+</tr>
+<tr>
+<td><code>--genetic-map</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Path to genetic map in three column format: POS CHR CM. Required for <code>--buffer-cm</code> option.</td>
+</tr>
+<tr>
+<td><code>--target-r2 (=0.0001)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Drop target (gene) LD matrix entries where r2 &lt; target_r2.</td>
+</tr>
+<tr>
+<td><code>--buffer-r2 (=0.0001)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Drop buffer (conditional) LD matrix entries where r2 &lt; buffer_r2.</td>
+</tr>
+<tr>
+<td><code>--float-size (=1)</code></td>
+<td>INT</td>
+<td>Optional</td>
+<td>Size of float in bytes to store LD of buffer variants. Possible values: 1, 2, or 4</td>
+</tr>
+<tr>
+<td><code>--block-size (=2048)</code></td>
+<td>INT</td>
+<td>Optional</td>
+<td>Number of genotypes loaded into memory = 2*block_size.</td>
+</tr>
+<tr>
+<td><code>--threads (=1)</code></td>
+<td>INT</td>
+<td>Optional</td>
+<td>Number of threads for computation.</td>
+</tr>
+<tr>
+<td><code>--target-extract</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Extract list of variants to include in target regions (e.g. exonic variants)</td>
+</tr>
+<tr>
+<td><code>--target-exclude</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Exclude list of variants from target file (e.g. non-coding variants)</td>
+</tr>
+<tr>
+<td><code>--target-keep</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>File with list of samples to keep (one sample per line, matching columns of psam file)</td>
+</tr>
+<tr>
+<td><code>--target-remove</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>File with list of samples to remove (one per line, matching columns of psam file)</td>
+</tr>
+<tr>
+<td><code>--buffer-extract</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Extract list of variants to include in buffer regions (e.g. imputed variants)</td>
+</tr>
+<tr>
+<td><code>--buffer-exclude</code></td>
+<td>FILE</td>
+<td>Optional</td>
+<td>Exclude list of variants from buffer file (e.g. low quality variants)</td>
+</tr>
+<tr>
+<td><code>--skip-buffer</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Exclude all buffer variants from LD calculation.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="remeta-index-anno">remeta index-anno</h2>
+<p>Index annotation files. Files must be bgzipped</p>
+<pre><code class="language-none">remeta index-anno --file ANNOTATION_FILE.gz
+</code></pre>
+<h3 id="options_5">Options</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Argument</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--file</code></td>
+<td>FILE</td>
+<td>Required</td>
+<td>Path to annotation file.</td>
+</tr>
+<tr>
+<td><code>--stride</code></td>
+<td>INT</td>
+<td>Required</td>
+<td>Length in bases between each index pointer.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="references">References</h2>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:1">
+<p>Lee, S., Abecasis, G. R., Boehnke, M., &amp; Lin, X. (2014). Rare-variant association analysis: study designs and statistical tests. The American Journal of Human Genetics, 95(1), 5-23.&#160;<a class="footnote-backref" href="#fnref:1" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+<li id="fn:2">
+<p>Lee, S., Emond, M. J., Bamshad, M. J., Barnes, K. C., Rieder, M. J., Nickerson, D. A., ... &amp; Lin, X. (2012). Optimal unified approach for rare-variant association testing with application to small-sample case-control whole-exome sequencing studies. The American Journal of Human Genetics, 91(2), 224-237.&#160;<a class="footnote-backref" href="#fnref:2" title="Jump back to footnote 2 in the text">&#8617;</a></p>
+</li>
+<li id="fn:3">
+<p>Liu, Y., Chen, S., Li, Z., Morrison, A. C., Boerwinkle, E., &amp; Lin, X. (2019). ACAT: a fast and powerful p value combination method for rare-variant analysis in sequencing studies. The American Journal of Human Genetics, 104(3), 410-421.&#160;<a class="footnote-backref" href="#fnref:3" title="Jump back to footnote 3 in the text">&#8617;</a></p>
+</li>
+<li id="fn:4">
+<p><a href="https://en.wikipedia.org/wiki/Fisher%27s_method#Relation_to_Stouffer's_Z-score_method">Stouffer's Method</a>&#160;<a class="footnote-backref" href="#fnref:4" title="Jump back to footnote 4 in the text">&#8617;</a></p>
+</li>
+<li id="fn:5">
+<p><a href="https://en.wikipedia.org/wiki/Fisher%27s_method">Fisher's Method</a>&#160;<a class="footnote-backref" href="#fnref:5" title="Jump back to footnote 5 in the text">&#8617;</a></p>
+</li>
+<li id="fn:6">
+<p>Ziyatdinov, A., Mbatchou, J., Marcketta, A., Backman, J., Gaynor, S., Zou, Y., ... &amp; Marchini, J. (2024). Joint testing of rare variant burden scores using non-negative least squares. The American Journal of Human Genetics, 111(10), 2139-2149.&#160;<a class="footnote-backref" href="#fnref:6" title="Jump back to footnote 6 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div></div>
+        
+        
+    </div>
+
+    
+      <footer class="col-md-12 text-center">
+          
+          
+            <hr>
+            <p>
+            <small>Documentation built with <a href="http://www.mkdocs.org/">MkDocs</a>.</small>
+            </p>
+          
+
+          
+          
+      </footer>
+    
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="../js/bootstrap-3.0.3.min.js"></script>
+
+    
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.0/build/highlight.min.js"></script>
+        
+    <script>hljs.initHighlightingOnLoad();</script>
+    
+
+    <script>var base_url = ".."</script>
+    
+    <script src="../js/base.js"></script>
+    <script src="../search/main.js"></script>
+
+    <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">
+                    <span aria-hidden="true">&times;</span>
+                    <span class="sr-only">Close</span>
+                </button>
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+            </div>
+            <div class="modal-body">
+                <p>
+                    From here you can search these documents. Enter
+                    your search terms below.
+                </p>
+                <form>
+                    <div class="form-group">
+                        <input type="text" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+    </body>
+
+</html>
