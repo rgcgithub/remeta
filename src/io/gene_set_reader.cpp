@@ -56,6 +56,9 @@ Gene GeneSetReader::read_gene() {
   shared_ptr<vector<string> > var_ids_order_ptr = make_shared<vector<string> >();
   ss = stringstream(var_ids);
   while (getline(ss, var_id, ',')) {
+    if (var_ids_ptr->count(var_id) > 0) {
+      continue;
+    }
     var_ids_ptr->insert(var_id);
     var_ids_order_ptr->push_back(var_id);
     i = var_id.find(":");
