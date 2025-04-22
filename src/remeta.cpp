@@ -9,7 +9,6 @@ namespace po = boost::program_options;
 #include <htslib/hts_log.h>
 
 #include "logging.hpp"
-#include "run_acatv.hpp"
 #include "run_compute_ref_ld.hpp"
 #include "run_esma.hpp"
 #include "run_genep.hpp"
@@ -64,6 +63,7 @@ Options (* Mandatory))"""");
     ("method", po::value<string>()->value_name("METHOD")->default_value("stouffers"),
       "One of stouffers or fishers")
     ("unweighted", "Omit sample size weighting (affects stouffers only).")
+    ("two-sided", "Use two-sided p-values when variants have an effect size in each cohort (affects stouffers only).")
     ("chr", po::value<string>()->value_name("CHR"),
      "Run only on chromosome CHR.")
     ("extract", po::value<string>()->value_name("FILE"),
@@ -155,6 +155,7 @@ Options (* Mandatory))"""");
     vm["out"].as<string>(),
     vm["method"].as<string>(),
     unweighted,
+    vm.count("two-sided") > 0,
     chr,
     extract,
     exclude,
@@ -259,497 +260,6 @@ Options (* Mandatory))"""");
   );
 }
 
-void acatv(const vector<string>& options) {
-  po::options_description opts(R""""(remeta: aggregated cauchy association test meta-analysis
-
-Usage: remeta acatv [OPTIONS]
-
-Options (* Mondatory))"""");
-
-  opts.add_options()
-    ("htp", po::value<vector<string> >()->value_name("HTP1 HTP2 ...")->required()->multitoken(),
-      "List of HTP input files. (*)")
-    ("cohorts", po::value<vector<string> >()->value_name("NAME1 NAME2 ...")->required()->multitoken(),
-      "List of cohort names per file. (*)")
-    ("anno-file", po::value<string>()->value_name("FILE")->required(),
-      "File with variant annotations. Bgzipped and indexed with 'index-anno'. (*)")
-    ("set-list", po::value<string>()->value_name("FILE")->required(),
-      "Regenie set-list file. (*)")
-    ("mask-def", po::value<string>()->value_name("FILE")->required(),
-      "Regenie mask-def file. (*)")
-    ("trait-name", po::value<string>()->value_name("NAME")->required(),
-      "Name of trait. (*)")
-    ("trait-type", po::value<string>()->value_name("TYPE")->required(),
-      "One of bt or qt. (*)")
-    ("out", po::value<string>()->value_name("PREFIX")->required(),
-      "Prefix for output file. (*)")
-    ("weight-strategy", po::value<string>()->value_name("STR")->default_value("beta"),
-      "Strategy to compute variant weights. One of 'beta' or 'uniform'.")
-    ("af-strategy", po::value<string>()->value_name("STR")->default_value("overall"),
-      "Strategy to compute variant allele frequences. One of 'overall' or 'max'.")
-    ("aaf-file", po::value<string>()->value_name("FILE"),
-      "Use precomputed alternate allele frequencies from an external file.")
-    ("max-aaf", po::value<double>()->value_name("FLOAT")->default_value(0.01),
-      "Maximum allele frequency for a variant to be included in mask.")
-    ("min-aac", po::value<int>()->value_name("INT")->default_value(5),
-      "Minimum AAC across cohorts for a variant to be included in a mask.")
-    ("chr", po::value<string>()->value_name("CHR"),
-      "Run only on chromosome CHR.")
-    ("gene", po::value<string>()->value_name("GENE"),
-      "If set, run only on this gene.")
-    ("extract", po::value<string>()->value_name("FILE"),
-      "Include only the variants with IDs listed in this file (one per line).")
-    ("exclude", po::value<string>()->value_name("FILE"),
-      "Exclude variants with IDs listed in this file (one per line).")
-    ("sources", po::value<vector<string> >()->value_name("SOURCE1 SOURCE2 ...")->multitoken(),
-      "Only include variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...")
-    ("ld-prefixes", po::value<vector<string> >()->value_name("FILE1 FILE2 ...")->required()->multitoken(),
-      "Prefixes to LD files per cohort.")
-    ("condition-list", po::value<string>()->value_name("FILE"),
-      "File with variants to condition on (one per line). Requires --ld-prefixes option.")
-    ("condition-htp", po::value<vector<string> >()->value_name("HTP1 HTP2 ...")->multitoken(),
-      "List of HTP files with summary statistics of conditional variants per study. Requires --ld-prefixes option.") 
-    ("write-mask-snplist", "Write file with list of variants included in each mask.")
-    ("threads", po::value<int>()->value_name("INT")->default_value(1),
-      "Number of threads to use.")
-    ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
-    ("help", "Print this message and exit.");
-
-  if (options.size() < 1) {
-    cerr << opts;
-    exit(1);
-  }
-
-  po::variables_map vm;
-  try { 
-    po::parsed_options parsed = po::command_line_parser(options)
-      .options(opts)
-      .run();
-    po::store(parsed, vm);
-    po::notify(vm);
-  } catch (boost::program_options::error& e) {
-    cerr << "error: " << e.what() << endl;
-    exit(1);
-  }
-
-  if (vm.count("log-level") && vm["log-level"].as<string>() == "debug") {
-    init_logging("debug", vm["out"].as<string>() + ".acatv.log");
-  } else if (vm.count("log-level")) {
-    cerr << "error: unrecognized --log-level: " + vm["log-level"].as<string>()
-         << endl;
-    exit(1);
-  } else {
-    init_logging("info", vm["out"].as<string>() + ".acatv.log");
-  }
-
-  string af_file;
-  if (vm.count("aaf-file") > 0) {
-    af_file = vm["aaf-file"].as<string>();
-  }
-  string chr;
-  if (vm.count("chr") > 0) {
-    chr = vm["chr"].as<string>();
-  }
-  string gene;
-  if (vm.count("gene") > 0) {
-    gene = vm["gene"].as<string>();
-  }
-  string extract;
-  if (vm.count("extract") > 0) {
-    extract = vm["extract"].as<string>();
-  }
-  string exclude;
-  if (vm.count("exclude") > 0) {
-    exclude = vm["exclude"].as<string>();
-  }
-  vector<string> sources;
-  if (vm.count("sources") > 0) {
-    sources = vm["sources"].as<vector<string> >();
-  }
-  vector<string> ld_prefixes;
-  if (vm.count("ld-prefixes") > 0) {
-    ld_prefixes = vm["ld-prefixes"].as<vector<string> >();
-  }
-  string condition_file;
-  if (vm.count("condition-list") > 0) {
-    condition_file = vm["condition-list"].as<string>();
-  }
-  vector<string> condition_htp;
-  if (vm.count("condition-htp") > 0) {
-    condition_htp = vm["condition-htp"].as<vector<string> >();
-  }
-
-  log_program_info("acatv", options);
-
-  run_acatv(
-    vm["htp"].as<vector<string> >(),
-    vm["cohorts"].as<vector<string> >(),
-    vm["anno-file"].as<string>(),
-    vm["set-list"].as<string>(),
-    vm["mask-def"].as<string>(),
-    vm["trait-name"].as<string>(),
-    vm["trait-type"].as<string>(),
-    vm["out"].as<string>(),
-    vm["af-strategy"].as<string>(),
-    af_file,
-    vm["weight-strategy"].as<string>(),
-    vm["min-aac"].as<int>(),
-    vm["max-aaf"].as<double>(),
-    chr,
-    gene,
-    extract,
-    exclude,
-    sources,
-    ld_prefixes,
-    condition_file,
-    condition_htp,
-    vm["threads"].as<int>(),
-    vm.count("write-mask-snplist") > 0
-  );
-}
-
-void skato(const vector<string>& options) {
-  po::options_description opts(R""""(remeta: omnibus sequence kernal association test meta-analysis
-
-Usage: remeta skato [OPTIONS]
-
-Options (* Mandatory))"""");
-
-  opts.add_options()
-    ("htp", po::value<vector<string> >()->value_name("HTP1 HTP2 ...")->required()->multitoken(),
-      "List of HTP input files. (*)")
-    ("ld-prefixes", po::value<vector<string> >()->value_name("FILE1 FILE2 ...")->required()->multitoken(),
-      "Prefixes to LD files per cohort. (*)")
-    ("cohorts", po::value<vector<string> >()->value_name("NAME1 NAME2 ...")->required()->multitoken(),
-      "List of cohort names per file. (*)")
-    ("anno-file", po::value<string>()->value_name("FILE")->required(),
-      "File with variant annotations. Bgzipped and indexed with 'index-anno'. (*)")
-    ("set-list", po::value<string>()->value_name("FILE")->required(),
-      "Regenie set-list file. (*)")
-    ("mask-def", po::value<string>()->value_name("FILE")->required(),
-      "Regenie mask-def file. (*)")
-    ("trait-name", po::value<string>()->value_name("NAME")->required(),
-      "Name of trait. (*)")
-    ("trait-type", po::value<string>()->value_name("TYPE")->required(),
-      "One of bt or qt. (*)")
-    ("out", po::value<string>()->value_name("PREFIX")->required(),
-      "Prefix for output file. (*)")
-    ("max-aaf", po::value<double>()->value_name("FLOAT")->default_value(0.01),
-      "Maximum allele frequency for a variant to be included in mask.")
-    ("min-aac", po::value<int>()->value_name("INT")->default_value(1),
-      "Minimum AAC across cohorts for a variant to be included in a mask.")
-    ("rho-values",
-      po::value<vector<double> >()->value_name("r1 r2 ...")->default_value(
-      vector<double>{0, 0.1*0.1, 0.2*0.2, 0.3*0.3, 0.4*0.4, 0.5*0.5, 0.5, 1},
-      "0 0.01 0.04 0.09 0.16 0.25 0.5 1")->multitoken(),
-      "Rho values for SKATO.")
-    ("weight-strategy", po::value<string>()->value_name("STR")->default_value("beta"),
-      "Strategy to compute variant weights. One of 'beta' or 'uniform'.")
-    ("condition-list", po::value<string>()->value_name("FILE"),
-      "File with variants to condition on (one per line).")
-    ("condition-htp", po::value<vector<string> >()->value_name("HTP1 HTP2 ...")->multitoken(),
-      "List of HTP files with summary statistics of conditional variants per study.")
-    ("af-strategy", po::value<string>()->value_name("STR")->default_value("overall"),
-      "Strategy to compute variant allele frequences. One of 'overall' or 'max'.")
-    ("aaf-file", po::value<string>()->value_name("FILE"),
-      "Use precomputed alternate allele frequencies from an external file.")
-    ("spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
-      "Apply SPA when the burden p-value is below spa-pval (BTs only, not applied to ACATV).")
-    ("spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.01, "0.01"),
-      "Apply SPA when # cases / # controls < spa-ccr (BTs only, not applied to ACATV).")
-    ("chr", po::value<string>()->value_name("CHR"),
-      "Run only on chromosome CHR.")
-    ("gene", po::value<string>()->value_name("GENE"),
-      "If set, run only on this gene.")
-    ("extract", po::value<string>()->value_name("FILE"),
-      "Include only the variants with IDs listed in this file (one per line).")
-    ("exclude", po::value<string>()->value_name("FILE"),
-      "Exclude variants with IDs listed in this file (one per line).")
-    ("sources", po::value<vector<string> >()->value_name("SOURCE1 SOURCE2 ...")->multitoken(),
-      "Only include variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...")
-    ("write-mask-snplist", "Write file with list of variants included in each mask.")
-    ("recompute-score", "Recompute score statistics from betas and standard errors when missing in input.")
-    ("keep-variants-not-in-ld-mat", "Keep variants absent from the LD matrix instead of dropping them.")
-    ("threads", po::value<int>()->value_name("INT")->default_value(1),
-      "Number of threads to use.")
-    ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
-    ("help", "Print this message and exit.");
-
-  if (options.size() < 1) {
-    cerr << opts;
-    exit(1);
-  }
-
-  po::variables_map vm;
-  try { 
-    po::parsed_options parsed = po::command_line_parser(options)
-      .options(opts)
-      .run();
-    po::store(parsed, vm);
-    po::notify(vm);
-  } catch (boost::program_options::error& e) {
-    cerr << "error: " << e.what() << endl;
-    exit(1);
-  }
-
-  if (vm.count("log-level") && vm["log-level"].as<string>() == "debug") {
-    init_logging("debug", vm["out"].as<string>() + ".skato.log");
-  } else if (vm.count("log-level")) {
-    cerr << "error: unrecognized --log-level: " + vm["log-level"].as<string>()
-         << endl;
-    exit(1);
-  } else {
-    init_logging("info", vm["out"].as<string>() + ".skato.log");
-  }
-
-  string condition_file;
-  if (vm.count("condition-list") > 0) {
-    condition_file = vm["condition-list"].as<string>();
-  }
-  vector<string> condition_htp;
-  if (vm.count("condition-htp") > 0) {
-    condition_htp = vm["condition-htp"].as<vector<string> > ();
-  }
-  string af_file;
-  if (vm.count("aaf-file") > 0) {
-    af_file = vm["aaf-file"].as<string>();
-  }
-  string chr;
-  if (vm.count("chr") > 0) {
-    chr = vm["chr"].as<string>();
-  }
-  string gene;
-  if (vm.count("gene") > 0) {
-    gene = vm["gene"].as<string>();
-  }
-  string extract = "";
-  if (vm.count("extract") > 0) {
-    extract = vm["extract"].as<string>();
-  }
-  string exclude = "";
-  if (vm.count("exclude") > 0) {
-    exclude = vm["exclude"].as<string>();
-  }
-  vector<string> sources;
-  if (vm.count("sources") > 0) {
-    sources = vm["sources"].as<vector<string> >();
-  }
-
-  log_program_info("skato", options);
- 
-  run_htp(
-    vm["htp"].as<vector<string> >(),
-    vm["ld-prefixes"].as<vector<string> >(),
-    vm["cohorts"].as<vector<string> >(),
-    vm["anno-file"].as<string>(),
-    vm["set-list"].as<string>(),
-    vm["mask-def"].as<string>(),
-    vm["trait-name"].as<string>(),
-    vm["trait-type"].as<string>(),
-    vm["out"].as<string>() + ".skato",
-    {},
-    "",
-    "",
-    true,
-    vm["max-aaf"].as<double>(),
-    vm["rho-values"].as<vector<double> >(),
-    vm["min-aac"].as<int>(),
-    vm["weight-strategy"].as<string>(),
-    false,
-    0,
-    0,
-    "",
-    true,
-    condition_file,
-    condition_htp,
-    vm["af-strategy"].as<string>(),
-    af_file,
-    vm["spa-pval"].as<double>(),
-    vm["spa-ccr"].as<double>(),
-    chr,
-    gene,
-    extract,
-    exclude,
-    sources,
-    vm["threads"].as<int>(),
-    false,
-    vm.count("write-mask-snplist") > 0,
-    false,
-    vm.count("recompute-score") > 0,
-    vm.count("keep-variants-not-in-ld-mat") > 0
-  );
-}
-
-void burden(const vector<string>& options) {
-  po::options_description opts(R""""(remeta: weighted sum test meta-analysis
-
-Usage: remeta burden [OPTIONS]
-
-Options (* Mandatory))"""");
-
-  opts.add_options()
-    ("htp", po::value<vector<string> >()->value_name("HTP1 HTP2 ...")->required()->multitoken(),
-      "List of HTP input files. (*)")
-    ("ld-prefixes", po::value<vector<string> >()->value_name("FILE1 FILE2 ...")->required()->multitoken(),
-      "Prefixes to LD files per cohort. (*)")
-    ("cohorts", po::value<vector<string> >()->value_name("NAME1 NAME2 ...")->required()->multitoken(),
-      "List of cohort names per file. (*)")
-    ("anno-file", po::value<string>()->value_name("FILE")->required(),
-      "File with variant annotations. Bgzipped and indexed with 'index-anno'. (*)")
-    ("set-list", po::value<string>()->value_name("FILE")->required(),
-      "Regenie set-list file. (*)")
-    ("mask-def", po::value<string>()->value_name("FILE")->required(),
-      "Regenie mask-def file. (*)")
-    ("trait-name", po::value<string>()->value_name("NAME")->required(),
-      "Name of trait. (*)")
-    ("trait-type", po::value<string>()->value_name("TYPE")->required(),
-      "One of bt or qt. (*)")
-    ("out", po::value<string>()->value_name("PREFIX")->required(),
-      "Prefix for output file. (*)")
-    ("aaf-bins", po::value<vector<double> >()->value_name("FLOAT FLOAT ...")->multitoken()->default_value(
-      vector<double>{1e-4, 1e-3, 5e-3, 1e-2},
-      "0.0001 0.001 0.005 0.01"),
-      "Allele frequency cutoffs for building masks for burden testing.")
-    ("singleton-def", po::value<string>()->value_name("STRING")->default_value("within"),
-      "Define singletons for the singleton mask within cohorts or across cohorts. One of 'within', 'across' or 'omit'.")
-    ("weight-strategy", po::value<string>()->value_name("STR")->default_value("uniform"),
-      "Strategy to compute variant weights for burden testing. One of 'beta' or 'uniform'.")
-    ("condition-list", po::value<string>()->value_name("FILE"),
-      "File with variants to condition on (one per line).")
-    ("condition-htp", po::value<vector<string> >()->value_name("HTP1 HTP2 ...")->multitoken(),
-      "List of HTP files with summary statistics of conditional variants per study.")
-    ("af-strategy", po::value<string>()->value_name("STR")->default_value("overall"),
-      "Strategy to compute variant allele frequences. One of 'overall' or 'max'.")
-    ("aaf-file", po::value<string>()->value_name("FILE"),
-      "Use precomputed alternate allele frequencies from an external file.")
-    ("spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
-      "Apply SPA when the burden p-value is below spa-pval (BTs only, not applied to ACATV).")
-    ("spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.01, "0.01"),
-      "Apply SPA when # cases / # controls < spa-ccr (BTs only, not applied to ACATV).")
-    ("chr", po::value<string>()->value_name("CHR"),
-      "Run only on chromosome CHR.")
-    ("gene", po::value<string>()->value_name("GENE"),
-      "If set, run only on this gene.")
-    ("extract", po::value<string>()->value_name("FILE"),
-      "Include only the variants with IDs listed in this file (one per line).")
-    ("exclude", po::value<string>()->value_name("FILE"),
-      "Exclude variants with IDs listed in this file (one per line).")
-    ("sources", po::value<vector<string> >()->value_name("SOURCE1 SOURCE2 ...")->multitoken(),
-      "Only include variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...")
-    ("write-cohort-burden-tests", "Compute and store per cohort burden tests.")
-    ("write-mask-snplist", "Write file with list of variants included in each mask.")
-    ("recompute-score", "Recompute score statistics from betas and standard errors when missing in input.")
-    ("keep-variants-not-in-ld-mat", "Keep variants absent from the LD matrix instead of dropping them.")
-    ("threads", po::value<int>()->value_name("INT")->default_value(1),
-      "Number of threads to use.")
-    ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
-    ("help", "Print this message and exit.");
-
-  if (options.size() < 1) {
-    cerr << opts;
-    exit(1);
-  }
-
-  po::variables_map vm;
-  try { 
-    po::parsed_options parsed = po::command_line_parser(options)
-      .options(opts)
-      .run();
-    po::store(parsed, vm);
-    po::notify(vm);
-  } catch (boost::program_options::error& e) {
-    cerr << "error: " << e.what() << endl;
-    exit(1);
-  }
-
-  if (vm.count("log-level") && vm["log-level"].as<string>() == "debug") {
-    init_logging("debug", vm["out"].as<string>() + ".burden.log");
-  } else if (vm.count("log-level")) {
-    cerr << "error: unrecognized --log-level: " + vm["log-level"].as<string>()
-         << endl;
-    exit(1);
-  } else {
-    init_logging("info", vm["out"].as<string>() + ".burden.log");
-  }
-
-  string condition_file;
-  if (vm.count("condition-list") > 0) {
-    condition_file = vm["condition-list"].as<string>();
-  }
-  vector<string> condition_htp;
-  if (vm.count("condition-htp") > 0) {
-    condition_htp = vm["condition-htp"].as<vector<string> > ();
-  }
-  string af_file;
-  if (vm.count("aaf-file") > 0) {
-    af_file = vm["aaf-file"].as<string>();
-  }
-  string chr;
-  if (vm.count("chr") > 0) {
-    chr = vm["chr"].as<string>();
-  }
-  string gene;
-  if (vm.count("gene") > 0) {
-    gene = vm["gene"].as<string>();
-  }
-  string extract = "";
-  if (vm.count("extract") > 0) {
-    extract = vm["extract"].as<string>();
-  }
-  string exclude = "";
-  if (vm.count("exclude") > 0) {
-    exclude = vm["exclude"].as<string>();
-  }
-  vector<string> sources;
-  if (vm.count("sources") > 0) {
-    sources = vm["sources"].as<vector<string> >();
-  }
-
-  log_program_info("burden", options);
-
-  run_htp(
-    vm["htp"].as<vector<string> >(),
-    vm["ld-prefixes"].as<vector<string> >(),
-    vm["cohorts"].as<vector<string> >(),
-    vm["anno-file"].as<string>(),
-    vm["set-list"].as<string>(),
-    vm["mask-def"].as<string>(),
-    vm["trait-name"].as<string>(),
-    vm["trait-type"].as<string>(),
-    vm["out"].as<string>() + ".burden",
-    vm["aaf-bins"].as<vector<double> >(),
-    vm["singleton-def"].as<string>(),
-    vm["weight-strategy"].as<string>(),
-    false,
-    0,
-    {},
-    0,
-    "",
-    true,
-    0,
-    0,
-    "",
-    true,
-    condition_file,
-    condition_htp,
-    vm["af-strategy"].as<string>(),
-    af_file,
-    vm["spa-pval"].as<double>(),
-    vm["spa-ccr"].as<double>(),
-    chr,
-    gene,
-    extract,
-    exclude,
-    sources,
-    vm["threads"].as<int>(),
-    vm.count("write-cohort-burden-tests") > 0,
-    vm.count("write-mask-snplist") > 0,
-    false,
-    vm.count("recompute-score") > 0,
-    vm.count("keep-variants-not-in-ld-mat") > 0
-  );
-}
-
 void htp(const vector<string>& options) {
   po::options_description opts(R""""(remeta: perform burden, SKATO, and ACATV meta-analysis.
 
@@ -780,10 +290,18 @@ Options (* Mandatory))"""");
       vector<double>{1e-4, 1e-3, 5e-3, 1e-2},
       "0.0001 0.001 0.005 0.01"),
       "Allele frequency cutoffs for building masks for burden testing.")
-    ("burden-singleton-def", po::value<string>()->value_name("STRING")->default_value("within"),
+    ("burden-singleton-def", po::value<string>()->value_name("STRING")->default_value("across"),
       "Define singletons for the singleton mask within cohorts or across cohorts. One of 'within', 'across' or 'omit'.")
     ("burden-weight-strategy", po::value<string>()->value_name("STR")->default_value("uniform"),
       "Strategy to compute variant weights for burden testing. One of 'beta' or 'uniform'.")
+    ("burden-mask-spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
+      "Apply a mask level SPA to burden tests when p-value < spa pval (BTs only).")
+    ("burden-mask-spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.02, "0.02"),
+      "Apply a mask level SPA to burden tests # cases / # controls < spa-ccr (BTs only).")
+    ("burden-sv-spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
+      "Apply a per variant SPA to burden tests p-value <  spa pval (BTs only).")
+    ("burden-sv-spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.00, "0.00"),
+      "Apply a per variant SPA to burden tests when # cases / # controls < spa ccr (BTs only).")
     ("skip-burden", "Do not run burden testing.")
     ("skato-max-aaf", po::value<double>()->value_name("FLOAT")->default_value(0.01),
       "Maximum allele frequency for a variant to be included in mask for SKATO.")
@@ -796,6 +314,14 @@ Options (* Mandatory))"""");
       "Minimum AAC across cohorts for a variant to be included in a mask for SKATO.")
     ("skato-weight-strategy", po::value<string>()->value_name("STR")->default_value("beta"),
       "Strategy to compute variant weights for SKATO. One of 'beta' or 'uniform'.")
+    ("skato-mask-spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
+      "Apply a mask level SPA to SKATO when p-value < spa pval (BTs only).")
+    ("skato-mask-spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.02, "0.02"),
+      "Apply a mask level SPA to SKATO when # cases / # controls < spa ccr (BTs only).")
+    ("skato-sv-spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
+      "Apply a per variant SPA to SKATO when p-value < spa pval (BTs only).")
+    ("skato-sv-spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.02, "0.02"),
+      "Apply a per variant SPA to SKATO when # cases / # controls < spa ccr (BTs only).")
     ("skip-skato", "Do not run SKATO.")
     ("acatv-max-aaf", po::value<double>()->value_name("FLOAT")->required()->default_value(0.01),
       "Maximum allele frequency for a variant to be included in mask for ACATV.")
@@ -803,6 +329,10 @@ Options (* Mandatory))"""");
       "Minimum AAC across cohorts for a variant to be included in a mask for ACATV.")
     ("acatv-weight-strategy", po::value<string>()->value_name("STR")->default_value("beta"),
       "Strategy to compute variant weights for ACATV. One of 'beta' or 'uniform'.")
+    ("acatv-sv-spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
+      "Apply a per variant SPA to ACATV when p-value < spa pval (BTs only).")
+    ("acatv-sv-spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.1, "0.1"),
+      "Apply a per variant SPA to ACATV when # cases / # controls < spa- ccr (BTs only).")
     ("skip-acatv", "Do not run ACATV.")
     ("condition-list", po::value<string>()->value_name("FILE"),
       "File with variants to condition on (one per line).")
@@ -812,10 +342,6 @@ Options (* Mandatory))"""");
       "Strategy to compute variant allele frequences. One of 'overall' or 'max'.")
     ("aaf-file", po::value<string>()->value_name("FILE"),
       "Use precomputed alternate allele frequencies from an external file.")
-    ("spa-pval", po::value<double>()->value_name("FLOAT")->default_value(0.05, "0.05"),
-      "Apply SPA when the burden p-value is below spa-pval (BTs only, not applied to ACATV).")
-    ("spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.01, "0.01"),
-      "Apply SPA when # cases / # controls < spa-ccr (BTs only, not applied to ACATV).")
     ("chr", po::value<string>()->value_name("CHR"),
       "Run only on chromosome CHR.")
     ("gene", po::value<string>()->value_name("GENE"),
@@ -831,16 +357,19 @@ Options (* Mandatory))"""");
     ("recompute-score", "Recompute score statistics from betas and standard errors when missing in input.")
     ("keep-variants-not-in-ld-mat", "Keep variants absent from the LD matrix instead of dropping them.")
     ("ignore-mask-ld", "Ignore LD between variants in a mask.")
+    ("write-variant-aaf", "Write file with variant AAFs used for to determine which variants to include in masks.")
     ("threads", po::value<int>()->value_name("INT")->default_value(1),
       "Number of threads to use.")
     ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
     ("help", "Print this message and exit.");
 
-  // po::options_description dev_opts("Development options");
-  // dev_opts.add_options();
+  po::options_description dev_opts("Development options");
+  dev_opts.add_options()
+    ("max-cond-var-per-gene", po::value<int>()->value_name("INT")->default_value(10000),
+      "Maximum number of variants to condition on per gene.");
 
   po::options_description all_opts("All options");
-  all_opts.add(opts);//.add(dev_opts);
+  all_opts.add(opts).add(dev_opts);
 
   if (options.size() < 1) {
     cerr << opts;
@@ -922,22 +451,31 @@ Options (* Mandatory))"""");
     vm["burden-aaf-bins"].as<vector<double> >(),
     vm["burden-singleton-def"].as<string>(),
     vm["burden-weight-strategy"].as<string>(),
+    vm["burden-mask-spa-pval"].as<double>(),
+    vm["burden-mask-spa-ccr"].as<double>(),
+    vm["burden-sv-spa-pval"].as<double>(),
+    vm["burden-sv-spa-ccr"].as<double>(),
     vm.count("skip-burden") > 0,
     vm["skato-max-aaf"].as<double>(),
     vm["skato-rho-values"].as<vector<double> >(),
     vm["skato-min-aac"].as<int>(),
     vm["skato-weight-strategy"].as<string>(),
+    vm["skato-mask-spa-pval"].as<double>(),
+    vm["skato-mask-spa-ccr"].as<double>(),
+    vm["skato-sv-spa-pval"].as<double>(),
+    vm["skato-sv-spa-ccr"].as<double>(),
     vm.count("skip-skato") > 0,
     vm["acatv-max-aaf"].as<double>(),
     vm["acatv-min-aac"].as<int>(),
     vm["acatv-weight-strategy"].as<string>(),
+    vm["acatv-sv-spa-pval"].as<double>(),
+    vm["acatv-sv-spa-ccr"].as<double>(),
     vm.count("skip-acatv") > 0,
     condition_file,
     condition_htp,
+    vm["max-cond-var-per-gene"].as<int>(),
     vm["af-strategy"].as<string>(),
     af_file,
-    vm["spa-pval"].as<double>(),
-    vm["spa-ccr"].as<double>(),
     chr,
     gene,
     extract,
@@ -948,7 +486,8 @@ Options (* Mandatory))"""");
     vm.count("write-mask-snplist") > 0,
     vm.count("ignore-mask-ld") > 0,
     vm.count("recompute-score") > 0,
-    vm.count("keep-variants-not-in-ld-mat") > 0
+    vm.count("keep-variants-not-in-ld-mat") > 0,
+    vm.count("write-variant-aaf") > 0
   );
 }
 
@@ -1213,6 +752,7 @@ Options (* Mandatory))"""");
     ("buffer-exclude", po::value<string>()->value_name("FILE"),
       "Exclude list of variants from buffer file (e.g. low quality variants)")
     ("skip-buffer", "Exclude all buffer variants from LD calculation.")
+    ("use-dosages", "Compute LD using dosages instead of hard calls for imputed variants.")
     ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
     ("help", "Print this message and exit.");
 
@@ -1311,7 +851,8 @@ Options (* Mandatory))"""");
       target_remove,
       buffer_extract,
       buffer_exclude,
-      skip_buffer
+      skip_buffer,
+      vm.count("use-dosages") > 0
     );
   } catch (std::exception& e) {
     log_error(e.what(), 1);
@@ -1447,12 +988,6 @@ Commands:
     pvma(subargs);
   } else if (cmd == "esma") {
     esma(subargs);
-  } else if (cmd == "acatv") {
-    acatv(subargs);
-  } else if (cmd == "skato") {
-    skato(subargs);
-  } else if (cmd == "burden") {
-    burden(subargs);
   } else if (cmd == "gene" || cmd == "htp") {
     htp(subargs);
   } else if (cmd == "merge" || cmd == "genep") {

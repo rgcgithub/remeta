@@ -290,7 +290,7 @@ test_result_t stouffers(const vector<double>& log10_pvals, const vector<double>&
   double pv = 0;
   for (size_t i = 0; i < log10_pvals.size(); ++i) {
     if (log10_pvals[i] < log10(std::numeric_limits<double>::min())) {
-      stat = sqrt(get_chisq_stat_from_logp(log10_pvals[i] + log10(2)));
+      stat = sqrt(get_chisq_stat_from_logp(log10_pvals[i]));
     } else {
       pv = min(pow(10, log10_pvals[i]), 1-1e-7);
       stat = boost::math::quantile(boost::math::complement(s, pv));
@@ -301,6 +301,27 @@ test_result_t stouffers(const vector<double>& log10_pvals, const vector<double>&
   denom = sqrt(denom);
   double z = -numer / denom;
   return normal(z, false);
+}
+
+test_result_t stouffers_two_sided(const vector<double>& log10_pvals, const vector<double>& weights, const vector<double>& signs) {  
+  boost::math::normal s;
+  double numer = 0;
+  double denom = 0;
+  double stat = 0;
+  double pv = 0;
+  for (size_t i = 0; i < log10_pvals.size(); ++i) {
+    if (log10_pvals[i] - log10(2) < log10(std::numeric_limits<double>::min())) {
+      stat = sqrt(get_chisq_stat_from_logp(log10_pvals[i]) - log10(2));
+    } else {
+      pv = min(pow(10, log10_pvals[i]), 1-1e-7);
+      stat = boost::math::quantile(boost::math::complement(s, pv/2));
+    }
+    numer += signs[i] * weights[i] * stat;
+    denom += weights[i] * weights[i];
+  }
+  denom = sqrt(denom);
+  double z = -abs(numer) / denom;
+  return normal(z, true);
 }
 
 test_result_t mixture_of_chisq(const double& stat, const Eigen::VectorXd& weights) {

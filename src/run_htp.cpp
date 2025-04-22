@@ -12,6 +12,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "io/allele_freq_writer.hpp"
 #include "io/bgz_reader.hpp"
 #include "io/gene_set_reader.hpp"
 #include "io/htpv4_reader.hpp"
@@ -38,41 +39,59 @@ void run_htp(
   const std::vector<double>& burden_aaf_bins,
   const std::string& burden_singleton_def,
   const std::string& burden_weight_strategy,
-  const bool& skip_burden,
-  const double& skato_max_aaf,
-  const std::vector<double> skato_rho_values,
-  const int& skato_min_aac,
+  double burden_mask_spa_pval,
+  double burden_mask_spa_ccr,
+  double burden_sv_spa_pval,
+  double burden_sv_spa_ccr,
+  bool skip_burden,
+  double skato_max_aaf,
+  const std::vector<double>& skato_rho_values,
+  int skato_min_aac,
   const std::string& skato_weight_strategy,
-  const bool& skip_skato,
-  const double& acatv_max_aaf,
-  const int& acatv_min_aac,
+  double skato_mask_spa_pval,
+  double skato_mask_spa_ccr,
+  double skato_sv_spa_pval,
+  double skato_sv_spa_ccr,
+  bool skip_skato,
+  double acatv_max_aaf,
+  int acatv_min_aac,
   const std::string& acatv_weight_strategy,
-  const bool& skip_acatv,
+  double acatv_sv_spa_pval,
+  double acatv_sv_spa_ccr,
+  bool skip_acatv,
   const std::string& condition_list_file,
   const std::vector<std::string>& condition_htp_files,
+  int max_cond_var_per_gene,
   const std::string& af_strategy,
   const std::string& af_file,
-  const double& spa_pval,
-  const double& spa_ccr,
   const std::string& chr,
   const std::string& gene,
   const std::string& extract_file,
   const std::string& exclude_file,
   const std::vector<std::string>& sources,
-  const int& threads,
-  const bool& write_cohort_burden_tests,
-  const bool& write_mask_snplist,
-  const bool& ignore_mask_ld,
-  const bool& recompute_score,
-  const bool& keep_variants_not_in_ld_mat
+  int threads,
+  bool write_cohort_burden_tests,
+  bool write_mask_snplist,
+  bool ignore_mask_ld,
+  bool recompute_score,
+  bool keep_variants_not_in_ld_mat,
+  bool write_freqs
 ) {
   pc::check_htp_files(htp_files);
   pc::check_file_exists(anno_file);
   pc::check_file_exists(set_list_file);
   pc::check_file_exists(mask_def_file);
   pc::check_anno_file_indexed(anno_file);
-  pc::check_pval(spa_pval);
-  pc::check_case_control_ratio(spa_ccr);
+  pc::check_pval(burden_mask_spa_pval);
+  pc::check_pval(burden_sv_spa_pval);
+  pc::check_case_control_ratio(burden_mask_spa_ccr);
+  pc::check_case_control_ratio(burden_sv_spa_ccr);
+  pc::check_pval(skato_mask_spa_pval);
+  pc::check_pval(skato_sv_spa_pval);
+  pc::check_case_control_ratio(skato_mask_spa_ccr);
+  pc::check_case_control_ratio(skato_sv_spa_ccr);
+  pc::check_pval(acatv_sv_spa_pval);
+  pc::check_case_control_ratio(acatv_sv_spa_ccr);
   pc::check_cohorts(cohorts, htp_files);
   pc::check_aac(skato_min_aac);
   pc::check_af(skato_max_aaf);
@@ -103,6 +122,7 @@ void run_htp(
   }
 
   VariantFilter vf;
+  vf.set_effect_not_na();
   if (!recompute_score) {
     vf.set_info_has_score();
   }
@@ -132,9 +152,7 @@ void run_htp(
     af,
     mask_def_file,
     anno_file,
-    ld_prefixes,
-    spa_pval,
-    spa_ccr
+    ld_prefixes
   );
 
   if (!skip_burden) {
@@ -143,7 +161,11 @@ void run_htp(
     meta.set_run_burden(
       burden_aaf_bins,
       singleton,
-      burden_weights
+      burden_weights,
+      burden_mask_spa_pval,
+      burden_mask_spa_ccr,
+      burden_sv_spa_pval,
+      burden_sv_spa_ccr
     );
   }
   if (!skip_skato) {
@@ -152,7 +174,11 @@ void run_htp(
       vector<double>{skato_max_aaf},
       skato_rho_values,
       skato_weights,
-      skato_min_aac
+      skato_min_aac,
+      skato_mask_spa_pval,
+      skato_mask_spa_ccr,
+      skato_sv_spa_pval,
+      skato_sv_spa_ccr
     );
   }
   if (!skip_acatv) {
@@ -160,7 +186,9 @@ void run_htp(
     meta.set_run_acatv(
       vector<double>{acatv_max_aaf},
       acatv_weights,
-      acatv_min_aac
+      acatv_min_aac,
+      acatv_sv_spa_pval,
+      acatv_sv_spa_ccr
     );
   }
 
@@ -185,7 +213,7 @@ void run_htp(
       log_warning("no variants found for conditional analysis");
     }
 
-    meta.set_conditional_variants(conditional_variants);
+    meta.set_conditional_variants(conditional_variants, max_cond_var_per_gene);
   }
 
   if (recompute_score) {
@@ -208,6 +236,12 @@ void run_htp(
   if (write_mask_snplist) {
     snplist_out.open(out_prefix + ".snplist.remeta.gz", "w");
     meta.set_write_mask_snplist(snplist_out);
+  }
+
+  AlleleFreqWriter freq_out;
+  if (write_freqs) {
+    freq_out.open(out_prefix + ".freqs.remeta.gz");
+    meta.set_write_freqs(freq_out);
   }
 
   HTPv4Writer out(out_prefix + ".remeta.gz", "w");

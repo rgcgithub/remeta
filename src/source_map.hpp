@@ -16,10 +16,13 @@ class SourceMap {
 
   std::string get_source_short(const std::string& source);
 
+  std::string get_category(const std::string& source);
+
  private:
   std::string filepath;
   bool is_loaded;
   std::unordered_map<std::string, std::string> source_map;
+  std::unordered_map<std::string, std::string> category_map;
 };
 
 #endif

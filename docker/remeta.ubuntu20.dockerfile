@@ -1,11 +1,15 @@
-FROM ubuntu:22.04 as builder
+FROM ubuntu:20.04 AS builder
 
 ENV CMAKE_VERSION 3.10
 ENV CMAKE_VERSION_PATCH 0
 ENV HTSLIB_VERSION 1.20
 ENV TMP_DIR /tmp
 
-COPY . ${TMP_DIR}/remeta
+COPY .git ${TMP_DIR}/remeta/.git
+COPY lib ${TMP_DIR}/remeta/lib
+COPY src ${TMP_DIR}/remeta/src
+COPY CMakeLists.txt ${TMP_DIR}/remeta/CMakeLists.txt
+COPY VERSION ${TMP_DIR}/remeta/VERSION
 
 ADD http://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}.${CMAKE_VERSION_PATCH}-Linux-x86_64.sh cmake_install.sh
 ADD https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB intel_key.PUB
@@ -52,8 +56,13 @@ RUN apt-get update \
     && make \
     && make install \
     && cp tabix /usr/local/bin/tabix \
+    && cd $TMP_DIR/remeta/lib/pgenlib \
+    && make clean \
+    && cd $TMP_DIR/remeta/lib/faddeeva \
+    && make clean \
+    && cd $TMP_DIR/remeta/lib/qfc \
+    && make clean \
     && cd $TMP_DIR/remeta \
-    && rm -f CMakeCache.txt \
     && cmake -D EIGEN_PATH=/usr/local/lib/eigen-3.4.0 \
              -D CMAKE_CXX_COMPILER=g++ \
              -D MKLROOT=${MKLROOT} \
@@ -63,7 +72,7 @@ RUN apt-get update \
     && cd \
     && rm -rf $TMP_DIR
 
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC

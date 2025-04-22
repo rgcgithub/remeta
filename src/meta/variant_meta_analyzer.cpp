@@ -91,6 +91,7 @@ void run_variant_meta_analysis(VariantMetaAnalyzer& meta,
   for (const htpv4_record_t& rec: meta.meta_analyze_before(last_chr, 1000000000)) {
     out.writerec(rec);
   }
+  meta.clear_before(last_chr, 1000000000);
 
   processing_time = std::chrono::steady_clock::now() - t;
   log_info("\t* completed in " + to_string(processing_time.count()) + " seconds");

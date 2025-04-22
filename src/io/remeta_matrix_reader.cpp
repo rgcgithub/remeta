@@ -97,3 +97,23 @@ void RemetaMatrixReader::check_closed() {
     throw runtime_error("RemetaMatrixReader attempting to operate on closed file");
   }
 }
+
+void RemetaMatrixReader::load_gene_variant_ids(vector<string>& variant_ids,
+                                               const string& gene_name) {
+  this->check_closed();
+  if (this->reader_opened == REF_READER) {
+    this->ref_reader.load_gene_variant_ids(variant_ids, gene_name);
+  } else {
+    this->regenie_reader.load_variant_ids(variant_ids, gene_name);
+  }                              
+}
+
+void RemetaMatrixReader::load_buffer_variant_ids(std::vector<std::string>& variant_ids,
+                                                 const std::string& gene_name) {
+  this->check_closed();
+  if (this->reader_opened == REF_READER) {
+    this->ref_reader.load_buffer_variant_ids(variant_ids, gene_name);
+  } else {
+    variant_ids.clear();
+  }
+}

@@ -65,7 +65,7 @@ remeta gene \
   --condition-htp HTP1 HTP2 ...
 ```
 
-**Running without LD matrices**
+**Running without LD matrices (not recommended)**
 
 `remeta gene` can be run without the required LD matrices by specifying the `--ignore-mask-ld` and `--keep-variants-not-in-ld-mat` flags.
 Note that it is not possible to perform conditional analysis without LD matrices.
@@ -92,6 +92,16 @@ Alternatively **remeta** can use a maximum allele frequency observed across coho
 Lastly, **remeta** allele frequencies can be specifed in an allele frequency file using the `--aaf-file` argument.
 See [File Formats](file_formats.md) for a list of available formats.
 
+**Unbalanced binary traits**
+
+**remeta** uses two strategies to control type 1 error for unbalanced binary traits:
+a saddlepoint approximation (SPA) applied per mask and an SPA applied per variant.
+The default parameters apply a mask level or variant level SPA when the case-control ratio of the trait falls below a certain threshold.
+Simulations suggest that the threshold on case control apply an SPA depends on the test (e.g. burden vs. SKATO),
+so parameters can be adjusted per test using several command line parameters.
+Mask level parameters are available for burden tests and SKATO, and adjusted using the `--<burden,skato>-mask-spa-<pval,ccr>` arguments.
+Variant level parameters are avaiable for burden test, SKATO, and ACATV, and adjusting using the `--<burden,skato,acatv>-sv-spa-<pval,ccr>` arguments.
+
 ### Options
 
 | Option | Argument | Type | Description |
@@ -105,25 +115,33 @@ See [File Formats](file_formats.md) for a list of available formats.
 | `--trait-name`              | STRING | Required | Name of trait. |
 | `--trait-type`              | STRING | Required | One of BT or QT. |
 | `--out`                     | STRING | Required | Prefix for output files. |
-| `--burdern-aaf-bins` (=0.0001 0.001 0.005 0.01) | FLOAT1 FLOAT2 ... | Optional | Allele frequency cutoffs for building masks for burden testing. |
+| `--burden-aaf-bins` (=0.0001 0.001 0.005 0.01) | FLOAT1 FLOAT2 ... | Optional | Allele frequency cutoffs for building masks for burden testing. |
 | `--burden-singleton-def` (=within) | STRING | Optional | Define singletons for the singleton mask within cohorts or across cohorts. One of 'within', 'across' or 'omit'. |
 | `--burden-weight-strategy (=uniform)` | STRING | Optional | Strategy to compute variant weights for burden testing. One of `beta` or `uniform`. |
+| `--burden-mask-spa-pval (=0.05)` | FLOAT | Optional | Apply a mask level SPA to burden tests when p-value < spa pval (BTs only). |
+| `--burden-mask-spa-ccr (=0.01)`  | FLOAT | Optional |  Apply a mask level SPA to burden tests # cases / # controls < spa-ccr (BTs only). |
+| `--burden-sv-spa-pval (=0.05)`   | FLOAT | Optional |  Apply a per variant SPA to burden tests p-value <  spa pval (BTs only). |
+| `--burden-sv-spa-ccr (=0.00)`    | FLOAT | Optional |  Apply a per variant SPA to burden tests when # cases / # controls < spa ccr (BTs only). |
 | `--skip-burden`              | FLAG | Optional | Do not run burden testing. |
 | `--skato-max-aaf (=0.01)`    | FLOAT | Optional | Maximum allele frequency for a variant to be included in mask for SKATO. |
 | `--skato-rho-values (=0 0.01 0.04 0.09 0.16 0.25 0.5 1)` | FLOAT1 FLOAT2 ... | Optional | Rho values for SKATO. |
 | `--skato-min-aac (=1)`      | INT | Optional |  Minimum AAC across cohorts for a variant to be included in a mask for SKATO. |
 | `--skato-weight-strategy`   | STRING | Optional | Strategy to compute variant weights for SKATO. One of 'beta' or 'uniform'. |
+| `--skato-mask-spa-pval (=0.05)` | FLOAT | Optional |  Apply a mask level SPA to SKATO when p-value < spa pval (BTs only). |
+| `--skato-mask-spa-ccr (=0.02)`  | FLOAT | Optional |  Apply a mask level SPA to SKATO when # cases / # controls < spa ccr (BTs only). |
+| `--skato-sv-spa-pval (=0.05)`   | FLOAT | Optional |  Apply a per variant SPA to SKATO when p-value < spa pval (BTs only). |
+| `--skato-sv-spa-ccr (=0.02)`    | FLOAT | Optional |  Apply a per variant SPA to SKATO when #cases / # controls < spa ccr (BTs only). |
 | `--skip-skato`              | FLAG | Optional | Do not run SKATO. |
 | `--acatv-max-aaf (=0.01)`   | FLOAT | Optional | Maximum allele frequency for a variant to be included in mask for ACATV. |
 | `--acatv-min-aac (=5)`      | INT | Optional | Minimum AAC across cohorts for a variant to be included in a mask for ACATV. |
 | `--acatv-weight-strategy`   | STRING | Optional | Strategy to compute variant weights for ACATV. One of 'beta' or 'uniform'. |
+| `--acatv-sv-spa-pval (=0.05)` | FLOAT | Optional | Apply a per variant SPA to ACATV when p-value < spa pval (BTs only). |
+| `--acatv-sv-spa-ccr (=0.02)`  | FLOAT | Optional | Apply a per variant SPA to ACATV when #cases / # controls < spa- ccr (BTs only). |
 | `--skip-acatv`              | STRING | Optional | Do not run ACATV. |
 | `--condition-list`          | FILE | Optional | File with variants to condition on (one per line). |
 | `--condition-htp`           | FILE1 FILE2 ... | Optional | List of HTP files with summary statistics of conditional variants per cohort. |
 | `--af-strategy (=overall)`  | STRING | Optional |  Strategy to compute variant allele frequences. One of 'overall' or 'max'. |
 | `--aaf-file`                | FILE | Optional | Use precomputed alternate allele frequencies from an external file. |
-| `--spa-pval =(0.05)`         | FLOAT | Optional | Apply SPA when the burden p-value is below spa-pval (BTs only, not applied to ACATV). |
-| `--spa-ccr =(0.01)`         | FLOAT | Optional | Apply SPA when # cases / # controls < spa-ccr (BTs only, not applied to ACATV). |
 | `--chr`                     | STRING | Optional | Run only on specifed chromosome. |
 | `--gene`                    | STRING | Optional | Run only on specified gene. |
 | `--extract`                 | FILE | Optional | Include only the variants with IDs listed in this file (one per line). |
@@ -134,6 +152,7 @@ See [File Formats](file_formats.md) for a list of available formats.
 | `--recompute-score`         | FLAG | Optional | Recompute score statistics from betas and standard errors when missing in input. |
 | `--keep-variants-not-in-ld-mat` | FLAG | Optional | Keep variants absent from the LD matrix instead of dropping them. | 
 | `--ignore-mask-ld`          | FLAG | Optional | Ignore LD between variants in a mask. |
+| `--write-variant-aaf`       | FLAG | Optional | Output variant AAFs used to construct masks. |
 | `--threads (=1)`            | INT | Optional | Number of threads to use. |
 
 

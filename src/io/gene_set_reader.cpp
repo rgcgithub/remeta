@@ -48,10 +48,11 @@ Gene GeneSetReader::read_gene() {
   ss >> gene_name;
   ss >> chrom;
   ss >> start_pos;
-  ss >> var_ids;           
-  
+  ss >> var_ids;
+
   string var_id;
-  int i, j, end_pos = 0;
+  size_t i, j;
+  int end_pos = 0;
   shared_ptr<unordered_set<string> > var_ids_ptr = make_shared<unordered_set<string> >();
   shared_ptr<vector<string> > var_ids_order_ptr = make_shared<vector<string> >();
   ss = stringstream(var_ids);
@@ -63,10 +64,12 @@ Gene GeneSetReader::read_gene() {
     var_ids_order_ptr->push_back(var_id);
     i = var_id.find(":");
     j = var_id.find(":", i+1);
-    end_pos = max(
-      end_pos,
-      stoi(var_id.substr(i+1, j-i-1))
-    );
+    if (i != string::npos && j != string::npos) {
+      end_pos = max(
+        end_pos,
+        stoi(var_id.substr(i+1, j-i-1))
+      );
+    }
   }
 
   return Gene(gene_name, chrom, start_pos, end_pos, var_ids_ptr, var_ids_order_ptr);

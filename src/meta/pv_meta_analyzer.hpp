@@ -23,7 +23,8 @@ class PVMetaAnalyzer : public VariantMetaAnalyzer {
                    trait_type_e trait_type,
                    string trait_name,
                    vector<string> cohorts,
-                   bool unweighted);
+                   bool unweighted,
+                   bool two_sided);
 
     void add_line(const htpv4_record_t& htpv4_rec, const int& study_index);
 
@@ -46,6 +47,7 @@ class PVMetaAnalyzer : public VariantMetaAnalyzer {
     string trait_name;
     vector<string> cohorts;
     bool unweighted;
+    bool two_sided;
     SourceMap source_map;
 
     unordered_set<htpv4_key_t> keys;

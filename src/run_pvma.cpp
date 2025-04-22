@@ -35,6 +35,7 @@ void run_pvma(const vector<string>& htp_files,
               const string& out_prefix,
               const string& method,
               const bool& unweighted,
+              const bool& two_sided,
               const string& chr,
               const string& extract_file,
               const string& exclude_file,
@@ -45,7 +46,7 @@ void run_pvma(const vector<string>& htp_files,
   pc::check_htp_files(htp_files);
   pc::check_cohorts(cohorts, htp_files);
   trait_type_e trait = pc::check_trait_type(trait_type);
-  pvma_method_e pvma_method = pc::check_pvma_method(method);
+  pvma_method_e pvma_method = pc::check_pvma_method(method, unweighted, two_sided);
   
   VariantFilter vf;
   if (extract_file != "") {
@@ -65,13 +66,14 @@ void run_pvma(const vector<string>& htp_files,
   if (sources.size() > 0) {
     vf.set_info_source_is_one_of(sources);
   }
-  
+
   PVMetaAnalyzer meta(
     pvma_method,
     trait,
     trait_name,
     cohorts,
-    unweighted
+    unweighted,
+    two_sided
   );
 
   if (source_def != "") {

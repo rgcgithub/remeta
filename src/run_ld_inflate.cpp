@@ -9,7 +9,7 @@ using namespace std;
 using Eigen::MatrixXf;
 
 #include "io/bgz_writer.hpp"
-#include "io/ref_ld_matrix_reader.hpp"
+#include "io/remeta_matrix_reader.hpp"
 #include "parameter_checks.hpp"
 namespace pc = parameter_checks;
 
@@ -17,7 +17,10 @@ void run_ld_inflate(const string& mat_prefix,
                     const string& out_prefix,
                     const string& gene_name,
                     const string& extract) {
-  RefLDMatrixReader reader(mat_prefix);
+  pc::check_ld_files(vector<string>{mat_prefix}, 1);
+
+  RemetaMatrixReader reader;
+  reader.open(mat_prefix);
   if (!reader.contains_gene(gene_name)) {
     log_error(gene_name + " not found", 1);
   }
@@ -99,6 +102,12 @@ void run_ld_inflate(const string& mat_prefix,
       out.write((boost::format("%1$g") % out_matrix(v1, v2)).str() + "\t");
     }
     out.write((boost::format("%1$g") % out_matrix(v1, out_matrix.cols()-1)).str() + "\n");
+  }
+  out.close();
+
+  out.open(out_prefix + ".snplist.gz", "w");
+  for (const string& vid: variants) {
+    out.write(vid + "\n");
   }
   out.close();
 

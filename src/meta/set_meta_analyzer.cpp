@@ -108,6 +108,7 @@ void run_set_meta_analysis(SetMetaAnalyzer& meta,
     prv_gene_start = gene_start;
     prv_gene_chr = g.get_chrom();
   }
+  meta.clear_before(prv_gene_chr, 1000000000);
   out.close();
   log_info("finished!");
 }

@@ -13,6 +13,13 @@ Most annotation files compatible with **regenie** should also be compatible with
 A file defining variant annotations.
 Contains 3 whitespace delimited columns: variant id (in CPRA format), gene name, and variant annotation.
 
+**New in v0.9.0**: **remeta** now supports a tabixible 5-column annotation file where column 4 is the chromosome and column 5 is the position.
+```
+1:55039839:T:C PCSK9 LoF 1 55039839
+1:55039842:G:A PCSK9 missense 1 55039842
+.
+```
+
 ### `--set-list`
 ```
 A1BG 19  58346922  19:58346922:C:A,19:58346924:G:A,...

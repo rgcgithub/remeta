@@ -2,11 +2,15 @@
 
 #include <cstdio>
 
+RegenieAnnoReader::RegenieAnnoReader()
+ : has_index(false), at_eof(false), is_closed(true), bgzf(NULL) { }
+
 RegenieAnnoReader::RegenieAnnoReader(string filepath) {
   this->filepath = filepath;
   this->bgzf = bgzf_open(filepath.c_str(), "r");
   this->buffer = KS_INITIALIZE;
   this->at_eof = false;
+  this->is_closed = false;
   this->line_buffer = "";
 
   if (this->bgzf == NULL) {
@@ -28,8 +32,10 @@ RegenieAnnoReader::RegenieAnnoReader(string filepath) {
 }
 
 RegenieAnnoReader::~RegenieAnnoReader() {
-  bgzf_close(this->bgzf);
-  ks_free(&this->buffer);
+  if (!is_closed) {
+    bgzf_close(this->bgzf);
+    ks_free(&this->buffer);
+  }
 }
 
 RegenieAnnoReader::RegenieAnnoReader(const RegenieAnnoReader &other) {
@@ -65,9 +71,23 @@ void swap(RegenieAnnoReader &first, RegenieAnnoReader &second) {
   std::swap(first.line, second.line);
   std::swap(first.line_buffer, second.line_buffer);
   std::swap(first.at_eof, second.at_eof);
+  std::swap(first.is_closed, second.is_closed);
   std::swap(first.bgzf, second.bgzf);
   std::swap(first.buffer, second.buffer);
   std::swap(first.index, second.index);
+}
+
+void RegenieAnnoReader::open(const string& filepath) {
+  RegenieAnnoReader other(filepath);
+  swap(*this, other);
+}
+
+void RegenieAnnoReader::close() {
+  if (!is_closed) {
+    bgzf_close(this->bgzf);
+    ks_free(&this->buffer);
+    is_closed = true;
+  }
 }
 
 string RegenieAnnoReader::readline() {
@@ -98,23 +118,18 @@ annorec_t RegenieAnnoReader::parse_line(string line) {
   stringstream ss(line);
   annorec_t rec;
   try {
-    ss >> rec.cpra;
+    ss >> rec.name;
     ss >> rec.gene;
     ss >> rec.annotation;
 
-    size_t chr_end = rec.cpra.find(":");
+    size_t chr_end = rec.name.find(":");
     if (chr_end == string::npos) {
       throw runtime_error("could not parse cpra");
     }
-    rec.chrom = rec.cpra.substr(0, chr_end);
+    rec.chrom = rec.name.substr(0, chr_end);
 
-    size_t pos_end = rec.cpra.find(":", chr_end + 1);
-    rec.pos = stoi(rec.cpra.substr(chr_end + 1, pos_end - chr_end));
-
-    size_t ref_end = rec.cpra.find(":", pos_end + 1);
-    rec.ref = rec.cpra.substr(pos_end + 1, ref_end - pos_end - 1);
-
-    rec.alt = rec.cpra.substr(ref_end + 1);  
+    size_t pos_end = rec.name.find(":", chr_end + 1);
+    rec.pos = stoi(rec.name.substr(chr_end + 1, pos_end - chr_end));  
   } catch(const std::exception& ex) {
     string msg = "could not parse line " + line + " in annotation file " + this->filepath;
     throw runtime_error(msg);
@@ -271,7 +286,7 @@ void RegenieAnnoReader::load_index() {
   }
 }
 
-void RegenieAnnoReader::seek(string chrom, int pos) {
+void RegenieAnnoReader::seek(const string& chrom, int pos) {
   if (!this->has_index) {
     throw runtime_error("seek requires and index");
   }

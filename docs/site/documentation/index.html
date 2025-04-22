@@ -206,7 +206,7 @@ The <code>--condition-list</code> argument takes a file with variant IDs to cond
   --condition-list VARIANT_ID_FILE \
   --condition-htp HTP1 HTP2 ...
 </code></pre>
-<p><strong>Running without LD matrices</strong></p>
+<p><strong>Running without LD matrices (not recommended)</strong></p>
 <p><code>remeta gene</code> can be run without the required LD matrices by specifying the <code>--ignore-mask-ld</code> and <code>--keep-variants-not-in-ld-mat</code> flags.
 Note that it is not possible to perform conditional analysis without LD matrices.</p>
 <pre><code class="language-none">remeta gene \
@@ -227,6 +227,14 @@ By default, <strong>remeta</strong> computes on overall allele frequency per var
 Alternatively <strong>remeta</strong> can use a maximum allele frequency observed across cohorts with the <code>--af-strategy max</code> argument.
 Lastly, <strong>remeta</strong> allele frequencies can be specifed in an allele frequency file using the <code>--aaf-file</code> argument.
 See <a href="../file_formats/">File Formats</a> for a list of available formats.</p>
+<p><strong>Unbalanced binary traits</strong></p>
+<p><strong>remeta</strong> uses two strategies to control type 1 error for unbalanced binary traits:
+a saddlepoint approximation (SPA) applied per mask and an SPA applied per variant.
+The default parameters apply a mask level or variant level SPA when the case-control ratio of the trait falls below a certain threshold.
+Simulations suggest that the threshold on case control apply an SPA depends on the test (e.g. burden vs. SKATO),
+so parameters can be adjusted per test using several command line parameters.
+Mask level parameters are available for burden tests and SKATO, and adjusted using the <code>--&lt;burden,skato&gt;-mask-spa-&lt;pval,ccr&gt;</code> arguments.
+Variant level parameters are avaiable for burden test, SKATO, and ACATV, and adjusting using the <code>--&lt;burden,skato,acatv&gt;-sv-spa-&lt;pval,ccr&gt;</code> arguments.</p>
 <h3 id="options">Options</h3>
 <table>
 <thead>
@@ -293,7 +301,7 @@ See <a href="../file_formats/">File Formats</a> for a list of available formats.
 <td>Prefix for output files.</td>
 </tr>
 <tr>
-<td><code>--burdern-aaf-bins</code> (=0.0001 0.001 0.005 0.01)</td>
+<td><code>--burden-aaf-bins</code> (=0.0001 0.001 0.005 0.01)</td>
 <td>FLOAT1 FLOAT2 ...</td>
 <td>Optional</td>
 <td>Allele frequency cutoffs for building masks for burden testing.</td>
@@ -309,6 +317,30 @@ See <a href="../file_formats/">File Formats</a> for a list of available formats.
 <td>STRING</td>
 <td>Optional</td>
 <td>Strategy to compute variant weights for burden testing. One of <code>beta</code> or <code>uniform</code>.</td>
+</tr>
+<tr>
+<td><code>--burden-mask-spa-pval (=0.05)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a mask level SPA to burden tests when p-value &lt; spa pval (BTs only).</td>
+</tr>
+<tr>
+<td><code>--burden-mask-spa-ccr (=0.01)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a mask level SPA to burden tests # cases / # controls &lt; spa-ccr (BTs only).</td>
+</tr>
+<tr>
+<td><code>--burden-sv-spa-pval (=0.05)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a per variant SPA to burden tests p-value &lt;  spa pval (BTs only).</td>
+</tr>
+<tr>
+<td><code>--burden-sv-spa-ccr (=0.00)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a per variant SPA to burden tests when # cases / # controls &lt; spa ccr (BTs only).</td>
 </tr>
 <tr>
 <td><code>--skip-burden</code></td>
@@ -341,6 +373,30 @@ See <a href="../file_formats/">File Formats</a> for a list of available formats.
 <td>Strategy to compute variant weights for SKATO. One of 'beta' or 'uniform'.</td>
 </tr>
 <tr>
+<td><code>--skato-mask-spa-pval (=0.05)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a mask level SPA to SKATO when p-value &lt; spa pval (BTs only).</td>
+</tr>
+<tr>
+<td><code>--skato-mask-spa-ccr (=0.02)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a mask level SPA to SKATO when # cases / # controls &lt; spa ccr (BTs only).</td>
+</tr>
+<tr>
+<td><code>--skato-sv-spa-pval (=0.05)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a per variant SPA to SKATO when p-value &lt; spa pval (BTs only).</td>
+</tr>
+<tr>
+<td><code>--skato-sv-spa-ccr (=0.02)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a per variant SPA to SKATO when #cases / # controls &lt; spa ccr (BTs only).</td>
+</tr>
+<tr>
 <td><code>--skip-skato</code></td>
 <td>FLAG</td>
 <td>Optional</td>
@@ -363,6 +419,18 @@ See <a href="../file_formats/">File Formats</a> for a list of available formats.
 <td>STRING</td>
 <td>Optional</td>
 <td>Strategy to compute variant weights for ACATV. One of 'beta' or 'uniform'.</td>
+</tr>
+<tr>
+<td><code>--acatv-sv-spa-pval (=0.05)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a per variant SPA to ACATV when p-value &lt; spa pval (BTs only).</td>
+</tr>
+<tr>
+<td><code>--acatv-sv-spa-ccr (=0.02)</code></td>
+<td>FLOAT</td>
+<td>Optional</td>
+<td>Apply a per variant SPA to ACATV when #cases / # controls &lt; spa- ccr (BTs only).</td>
 </tr>
 <tr>
 <td><code>--skip-acatv</code></td>
@@ -393,18 +461,6 @@ See <a href="../file_formats/">File Formats</a> for a list of available formats.
 <td>FILE</td>
 <td>Optional</td>
 <td>Use precomputed alternate allele frequencies from an external file.</td>
-</tr>
-<tr>
-<td><code>--spa-pval =(0.05)</code></td>
-<td>FLOAT</td>
-<td>Optional</td>
-<td>Apply SPA when the burden p-value is below spa-pval (BTs only, not applied to ACATV).</td>
-</tr>
-<tr>
-<td><code>--spa-ccr =(0.01)</code></td>
-<td>FLOAT</td>
-<td>Optional</td>
-<td>Apply SPA when # cases / # controls &lt; spa-ccr (BTs only, not applied to ACATV).</td>
 </tr>
 <tr>
 <td><code>--chr</code></td>
@@ -465,6 +521,12 @@ See <a href="../file_formats/">File Formats</a> for a list of available formats.
 <td>FLAG</td>
 <td>Optional</td>
 <td>Ignore LD between variants in a mask.</td>
+</tr>
+<tr>
+<td><code>--write-variant-aaf</code></td>
+<td>FLAG</td>
+<td>Optional</td>
+<td>Output variant AAFs used to construct masks.</td>
 </tr>
 <tr>
 <td><code>--threads (=1)</code></td>

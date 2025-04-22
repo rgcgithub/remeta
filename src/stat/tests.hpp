@@ -42,6 +42,7 @@ namespace stat::tests {
 
   test_result_t fishers(const std::vector<double>& log10_pvals);
   test_result_t stouffers(const std::vector<double>& log10_pvals, const std::vector<double>& weights);
+  test_result_t stouffers_two_sided(const std::vector<double>& log10_pvals, const std::vector<double>& weights, const std::vector<double>& signs);
 
   test_result_t mixture_of_chisq(const double& stat, const Eigen::VectorXd& weights);
   test_result_t mixture_of_chisq_davies(const double& stat, Eigen::VectorXd& weights, const bool& force_stringent);

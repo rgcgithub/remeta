@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <boost/format.hpp>
 #include <cmath>
+#include <set>
 #include <stdexcept>
 #include <iostream>
 using namespace std;
@@ -30,7 +31,12 @@ void ESMetaAnalyzer::add_line(const htpv4_record_t& rec,
     throw runtime_error("REGENIE_SE, META_SE or, EXTERNAL_GWAS_SE, or SE info field is required for ESMA: " + rec.name);
   }
 
-  htpv4_key_t key = rec.name + "." + rec.model;
+  htpv4_key_t key;
+  if (util::is_cpra(rec.name)) {
+    key = rec.name;
+  } else {
+    key = rec.name + "." + rec.model;
+  }
   if (this->keys.find(key) == this->keys.end()) {
     this->keys.insert(key);
     this->key_order.push_back(key);
@@ -53,7 +59,7 @@ void ESMetaAnalyzer::add_line(const htpv4_record_t& rec,
       rec.alt,
       this->trait_name,
       "",
-      rec.model + "-META",
+      "",
       HTPv4_NA,
       HTPv4_NA,
       HTPv4_NA,
@@ -97,6 +103,7 @@ void ESMetaAnalyzer::add_line(const htpv4_record_t& rec,
     variant->info_scores[study_index] = stod(rec.info.at("INFO"));
   }
   variant->cohort_idx.push_back(study_index);
+  variant->models.insert(rec.model);
 
   variant->sample_sizes[study_index] = rec.num_cases;
   variant->meta_result.num_cases += rec.num_cases;
@@ -155,10 +162,15 @@ vector<htpv4_record_t> ESMetaAnalyzer::meta_analyze_before(const string& chr,
     double se = sqrt(1 / weight_sum);
     double z = beta / se;
 
-    stat::tests::test_result_t test_result = stat::tests::normal(-abs(z), true);
-    test_result.pval = min(test_result.pval, 1 - 1e-6);
-    v.meta_result.pval = test_result.pval;
-    v.meta_result.info["LOG10P"] = to_string(-test_result.log10p);
+    if (boost::math::isnan(z)) {
+      log_warning("meta-analysis failed for: " + v.meta_result.name);
+      v.meta_result.pval = HTPv4_NA;
+    } else {
+      stat::tests::test_result_t test_result = stat::tests::normal(-abs(z), true);
+      test_result.pval = min(test_result.pval, 1 - 1e-6);
+      v.meta_result.pval = test_result.pval;
+      v.meta_result.info["LOG10P"] = to_string(-test_result.log10p);
+    }
 
     if (this->is_bt()) {
       v.meta_result.lci_effect = exp(beta - 1.96 * se);
@@ -175,6 +187,15 @@ vector<htpv4_record_t> ESMetaAnalyzer::meta_analyze_before(const string& chr,
     v.meta_result.info["META_SE"] = to_string(se);
     v.meta_result.info["Direction"] = v.effect_directions;
 
+    v.meta_result.model = "";
+    for (const string& m : v.models) {
+      if (v.meta_result.model != "") {
+        v.meta_result.model  += "__";
+      }
+      v.meta_result.model += m;
+    }
+    v.meta_result.model += "-META";
+
     if (this->include_study_aafs) {
       string aafs = "";
       for (size_t i = 0; i < v.aafs.size(); ++i) {
@@ -190,6 +211,7 @@ vector<htpv4_record_t> ESMetaAnalyzer::meta_analyze_before(const string& chr,
 
     string source_list = "";
     string source = "";
+    string category = "";
     bool at_least_one_variant_has_source = false;
     for (int i = 0; i < this->nstudies; ++i) {
       if (v.sources[i] != "") {
@@ -201,16 +223,21 @@ vector<htpv4_record_t> ESMetaAnalyzer::meta_analyze_before(const string& chr,
 
         if (source == "") {
           source = v.sources[i];
-        } else if (source != "MULTI"
-                   && source != v.sources[i]
-                   && source.find("EXOME") != string::npos
-                   && v.sources[i].find("EXOME") != string::npos) { 
-          source = "MULTI-EXOME";
         } else if (source != v.sources[i]) {
           source = "MULTI";
         }
+
+        if (category == "") {
+          category = source_map.get_category(v.sources[i]);
+        } else if (category != source_map.get_category(v.sources[i])) {
+          category = "MULTI";
+        }
       }
     }
+    if (source == "MULTI" && category != "MULTI" && category != "") {
+      source = "MULTI-" + category;
+    }
+
     if (at_least_one_variant_has_source) {
       v.meta_result.info["SOURCE"] = source;
       v.meta_result.info["SOURCE_LIST"] = source_list;

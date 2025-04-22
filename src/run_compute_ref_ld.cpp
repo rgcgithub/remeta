@@ -198,7 +198,8 @@ void run_compute_ref_ld(const string& target_pfile,
                         const string& target_remove,
                         const string& buffer_extract,
                         const string& buffer_exclude,
-                        const bool& skip_buffer) {
+                        const bool& skip_buffer,
+                        const bool& use_dosages) {
   pc::check_file_exists(target_pfile + ".pgen");
   pc::check_file_exists(target_pfile + ".pvar");
   pc::check_file_exists(target_pfile + ".psam");
@@ -271,6 +272,11 @@ void run_compute_ref_ld(const string& target_pfile,
                        10000,
                        target_reader.get_keep_list(),
                        target_reader.get_remove_list());
+  }
+
+  if (use_dosages) {
+    target_reader.set_read_dosages();
+    buffer_reader.set_read_dosages();
   }
 
   if (buffer_reader.get_nkeep_samples() != target_reader.get_nkeep_samples()) {

@@ -23,6 +23,10 @@ void SourceMap::load(const string& filepath) {
     line = reader.readline();
     split = util::str_split(line, "\t ");
     this->source_map[split[0]] = split[1];
+
+    if (split.size() >= 3) {
+      this->category_map[split[0]] = split[2];
+    }
   }
   this->is_loaded = true;
 }
@@ -41,5 +45,13 @@ string SourceMap::get_source_short(const string& source) {
     return this->source_map.at(source);
   } else {
     return source;
+  }
+}
+
+string SourceMap::get_category(const string& source) {
+  if (this->category_map.count(source) > 0) {
+    return this->category_map.at(source);
+  } else {
+    return "";
   }
 }

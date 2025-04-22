@@ -31,5 +31,5 @@ jobs:
 
     - name: Build the Docker image
       run: |
-        docker build . --file docker/remeta.dockerfile --tag ghcr.io/${{ env.REPO_NAME }}/remeta:v${{ steps.version.outputs.version }}
+        docker build . --file docker/remeta.ubuntu22.dockerfile --tag ghcr.io/${{ env.REPO_NAME }}/remeta:v${{ steps.version.outputs.version }}
         docker push ghcr.io/${{ env.REPO_NAME }}/remeta:v${{ steps.version.outputs.version }}

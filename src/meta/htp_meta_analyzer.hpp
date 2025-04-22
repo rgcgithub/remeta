@@ -9,6 +9,7 @@
 #include <Eigen/Dense>
 
 #include "set_meta_analyzer.hpp"
+#include "../io/allele_freq_writer.hpp"
 #include "../io/gene_set_reader.hpp"
 #include "../io/bgz_reader.hpp"
 #include "../io/bgz_writer.hpp"
@@ -87,6 +88,10 @@ struct burden_params_t {
   std::vector<double> af_bins;
   singleton_def_e singleton_def;
   weight_strategy_e weight_strategy;
+  double mask_spa_z_score;
+  double mask_spa_case_control_ratio;
+  double sv_spa_z_score;
+  double sv_spa_case_control_ratio;
 
   bool params_set() { return af_bins.size() > 0; }
 };
@@ -96,6 +101,10 @@ struct skato_params_t {
   std::vector<double> rho_values;
   weight_strategy_e weight_strategy;
   int min_aac;
+  double mask_spa_z_score;
+  double mask_spa_case_control_ratio;
+  double sv_spa_z_score;
+  double sv_spa_case_control_ratio;
 
   bool params_set() { return af_bins.size() > 0; }
 };
@@ -104,6 +113,8 @@ struct acatv_params_t {
   std::vector<double> af_bins;
   weight_strategy_e weight_strategy;
   int min_aac;
+  double sv_spa_z_score;
+  double sv_spa_case_control_ratio;
 
   bool params_set() { return af_bins.size() > 0; }
 };
@@ -116,19 +127,34 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
                   const af_strategy_e& af_strategy,
                   const std::string& mask_def_file,
                   const std::string& annotation_file,
-                  const std::vector<std::string>& ld_file_prefixes,
-                  const double& spa_pval,
-                  const double& spa_case_control_ratio);
+                  const std::vector<std::string>& ld_file_prefixes);
 
   void set_af_file(const string& af_file);
 
-  void set_conditional_variants(const vector<vector<htpv4_record_t> > study_conditional_variants);
+  void set_conditional_variants(const vector<vector<htpv4_record_t> >& study_conditional_variants, int max_cond_var_per_gene);
 
-  void set_run_burden(const std::vector<double>& af_bins, const singleton_def_e& singleton_def, const weight_strategy_e& weight_strategy);
+  void set_run_burden(const std::vector<double>& af_bins,
+                      const singleton_def_e& singleton_def,
+                      const weight_strategy_e& weight_strategy,
+                      double mask_spa_pval,
+                      double mask_spa_case_control_ratio,
+                      double sv_spa_pval,
+                      double sv_spa_case_control_ratio);
 
-  void set_run_skato(const std::vector<double>& af_bins, const std::vector<double>& rho_values, const weight_strategy_e& weight_strategy, const int& min_aac);
+  void set_run_skato(const std::vector<double>& af_bins,
+                     const std::vector<double>& rho_values,
+                     const weight_strategy_e& weight_strategy,
+                     int min_aac,
+                     double mask_spa_pval,
+                     double mask_spa_case_control_ratio,
+                     double sv_spa_pval,
+                     double sv_spa_case_control_ratio);
 
-  void set_run_acatv(const std::vector<double>& af_bins, const weight_strategy_e& weight_strategy, const int& min_aac);
+  void set_run_acatv(const std::vector<double>& af_bins,
+                     const weight_strategy_e& weight_strategy,
+                     int min_aac,
+                     double sv_spa_pval,
+                     double sv_spa_case_control_ratio);
 
   void set_write_cohort_burden_tests(HTPv4Writer& burden_writer);
 
@@ -139,6 +165,8 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
   void set_recompute_score();
 
   void set_keep_variants_not_in_ld_mat();
+
+  void set_write_freqs(AlleleFreqWriter& freq_writer);
 
   void add_line(const htpv4_record_t& rec, const int& study_index);
 
@@ -157,8 +185,10 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
   std::string mask_def_file;
   std::string annotation_file;
   std::vector<std::string> ld_file_prefixes;
-  double spa_z_score;
-  double spa_case_control_ratio;
+  double mask_spa_z_score;
+  double mask_spa_case_control_ratio;
+  double sv_spa_z_score;
+  double sv_spa_case_control_ratio;
   std::string af_file;
   AlleleFrequencyMap af_map;
   int nstudies;
@@ -183,6 +213,11 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
   Eigen::MatrixXd conditional_scorev;
   Eigen::MatrixXd conditional_betas;
   Eigen::MatrixXd conditional_ses;
+  Eigen::VectorXd conditional_scores_sum;
+  Eigen::VectorXd conditional_scorev_sum;
+  Eigen::VectorXd conditional_chisq_stats;
+  vector<int> conditional_sorted_variants_idx;
+  int max_cond_var_per_gene;
 
   // set by set_write_cohort_burden_tests
   bool write_cohort_burden_tests;
@@ -195,6 +230,10 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
   bool ignore_mask_ld;
   bool recompute_score;
   bool keep_variants_not_in_ld_mat;
+
+  // set by set_write_freqs
+  bool write_freqs;
+  AlleleFreqWriter* freq_writer;
 
   void check_info(const htpv4_record_t& rec);
   double get_score(const htpv4_record_t& rec);

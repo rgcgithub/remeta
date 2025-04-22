@@ -23,6 +23,7 @@ void run_compute_ref_ld(const std::string& target_pfile,
                         const std::string& target_remove,
                         const std::string& buffer_extract,
                         const std::string& buffer_exclude,
-                        const bool& skip_buffer);
+                        const bool& skip_buffer,
+                        const bool& use_dosages);
 
 #endif

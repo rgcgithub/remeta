@@ -2,6 +2,7 @@
 #define ES_META_ANALYZER
 
 #include <string>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -26,6 +27,7 @@ struct es_variant_t {
   vector<double> sample_sizes;
   vector<double> info_scores;
   vector<int> cohort_idx;
+  set<string> models;
   string effect_directions;
   vector<string> sources;
   htpv4_record_t meta_result;

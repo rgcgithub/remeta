@@ -18,7 +18,7 @@ namespace parameter_checks {
 
   void check_htp_files(vector<string> htp_files);
 
-  pvma_method_e check_pvma_method(string method);
+  pvma_method_e check_pvma_method(string method, bool unweighted, bool two_sided);
 
   void check_cohorts(vector<string> cohorts, vector<string> htp_files);
 

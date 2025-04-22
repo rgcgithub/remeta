@@ -50,6 +50,18 @@ class RemetaMatrixReader {
   
   bool contains_gene(const std::string& gene_name);
 
+  /*
+    Gives the list of variants in gene_name in the gene LD file
+  */ 
+  void load_gene_variant_ids(std::vector<std::string>& variant_ids,
+                             const std::string& gene_name);
+
+  /*
+    Gives the list of variants in gene_name in the buffer LD file
+  */
+  void load_buffer_variant_ids(std::vector<std::string>& variant_ids,
+                               const std::string& gene_name);
+
  private:
   enum reader_opened_e {
     REF_READER,

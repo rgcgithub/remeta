@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <set>
 #include <stdexcept>
 using namespace std;
 
@@ -12,18 +13,25 @@ PVMetaAnalyzer::PVMetaAnalyzer(pvma_method_e method,
                                trait_type_e trait_type,
                                string trait_name,
                                vector<string> cohorts,
-                               bool unweighted) 
+                               bool unweighted,
+                               bool two_sided) 
   : method(method)
   , trait_type(trait_type)
   , trait_name(trait_name)
   , cohorts(cohorts)
-  , unweighted(unweighted) { }
+  , unweighted(unweighted)
+  , two_sided(two_sided) { }
 
 void PVMetaAnalyzer::add_line(const htpv4_record_t& rec, const int& study_index) {
   log_debug("entering PVMetaAnalyzer::add_line");
   log_debug("processing " + rec.name + " from study " + to_string(study_index));
 
-  htpv4_key_t key = rec.name + "." + rec.model;
+  htpv4_key_t key;
+  if (util::is_cpra(rec.name)) {
+    key = rec.name;
+  } else {
+    key = rec.name + "." + rec.model;
+  }
   if (this->keys.find(key) == this->keys.end()) {
     this->keys.insert(key);
     this->key_order.push_back(key);
@@ -57,7 +65,9 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
 
     vector<double> log10_pvals;
     vector<double> sample_sizes;
+    vector<double> signs;
     vector<int> cohort_idx;
+    set<string> models;
     double sample_sizes_sum = 0.0;
     int num_cases = 0;
     int cases_ref = 0;
@@ -71,6 +81,7 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
     rec_pos = this->htpv4_recs[key][0].pos;
     string source_list = "";
     string source = "";
+    string category = "";
     for (htpv4_record_t rec : this->htpv4_recs[key]) {
       if (rec.chr != rec_chr || rec.pos != rec_pos) {
         string expected = rec_chr + ":" + to_string(rec_pos);
@@ -80,7 +91,7 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
 
       if (rec.pval >= std::numeric_limits<double>::min()) {
         log10_pvals.push_back(log10(rec.pval));
-      } else if (rec.info.count("LOG10P")) {
+      } else if (rec.pval != HTPv4_NA && rec.info.count("LOG10P") && rec.info.at("LOG10P") != "NA") {
         log10_pvals.push_back(-stod(rec.info.at("LOG10P")));
       } else if (rec.pval != HTPv4_NA) {
         log10_pvals.push_back(log10(std::numeric_limits<double>::min()));
@@ -88,6 +99,11 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
         log_warning("found invalid p-value for " + key);
         continue;
       }
+
+      if (this->two_sided && HTPv4Reader::has_beta(rec)) {
+        signs.push_back(HTPv4Reader::get_beta(rec) > 0 ? 1.0 : -1.0);
+      }
+      models.insert(rec.model);
 
       num_cases += rec.num_cases;
       cases_ref += rec.cases_ref;
@@ -126,7 +142,22 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
           source_list += ",";
         }
         source_list += source_map.get_source_short(rec.info.at("SOURCE"));
+
+        if (category == "") {
+          category = source_map.get_category(rec.info.at("SOURCE"));
+        } else if (category != source_map.get_category(rec.info.at("SOURCE"))) {
+          category = "MULTI";
+        }
       }
+    }
+
+    if (source == "MULTI" && category != "MULTI" && category != "") {
+      source = "MULTI-" + category;
+    }
+
+    if (log10_pvals.size() == 0) {
+      log_warning("no valid p-values found for " + key);
+      continue;
     }
 
     stat::tests::test_result_t test_result;
@@ -135,7 +166,14 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
       for (const double& s : sample_sizes) {
         weights.push_back(sqrt(s));
       }
-      test_result = stat::tests::stouffers(log10_pvals, weights);
+
+      bool all_var_have_sign = log10_pvals.size() == signs.size();
+      if (all_var_have_sign) {
+        test_result = stat::tests::stouffers_two_sided(log10_pvals, weights, signs);
+      } else {
+        test_result = stat::tests::stouffers(log10_pvals, weights);
+      }
+
     } else if (this->method == FISHERS) {
       test_result = stat::tests::fishers(log10_pvals);
     } else {
@@ -143,6 +181,14 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
     }
 
     htpv4_record_t rec0 = this->htpv4_recs[key][0];
+    string model = "";
+    for (const string& m : models) {
+      if (model != "") {
+        model  += "__";
+      }
+      model += m;
+    }
+    model += "-META";
     results.push_back(
       htpv4_record_t {
         rec0.name,
@@ -152,7 +198,7 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
         rec0.alt,
         this->trait_name,
         util::format_cohort_meta(this->cohorts, this->htpv4_cohort_idx[key]),
-        rec0.model + "-META",
+        model,
         HTPv4_NA,
         HTPv4_NA,
         HTPv4_NA,

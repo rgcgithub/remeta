@@ -104,6 +104,8 @@ void run_acatv(const vector<string>& htp_files,
     anno_file,
     ld_prefixes,
     0,
+    0,
+    0,
     0
   );
   meta.set_run_acatv({max_aaf}, weight, min_aac);
@@ -130,7 +132,7 @@ void run_acatv(const vector<string>& htp_files,
       log_error("no variants found for conditional analysis", 1);
     }
 
-    meta.set_conditional_variants(conditional_variants);
+    meta.set_conditional_variants(conditional_variants, 10000);
   }
 
   BgzWriter snplist_out;

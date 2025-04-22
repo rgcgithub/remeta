@@ -27,6 +27,10 @@ namespace util {
     return split;
   }
 
+  bool is_cpra(const string& name) {
+    return std::count(name.begin(), name.end(), ':') == 3;
+  }
+
   bool file_exists(string filename) {
     if (FILE *file = fopen(filename.c_str(), "r")) {
       fclose(file);

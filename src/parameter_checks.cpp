@@ -30,15 +30,24 @@ namespace parameter_checks {
     }
   }
 
-  pvma_method_e check_pvma_method(string method) {
+  pvma_method_e check_pvma_method(string method, bool unweighted, bool two_sided) {
+    pvma_method_e pvma_method;
     if (method == "stouffers") {
-      return STOUFFERS;
+      pvma_method = STOUFFERS;
     } else if (method == "fishers") {
-      return FISHERS;
+      pvma_method = FISHERS;
     } else {
       log_error("method must be one of: stouffers, fishers", 1);
     }
-    return STOUFFERS;
+    
+    if (pvma_method != STOUFFERS && unweighted) {
+      log_error("--unweighted is only valid with --method stouffers", 1);
+    }
+    if (pvma_method != STOUFFERS && two_sided) {
+      log_error("--two-sided is only valid with --method stouffers", 1);
+    }
+
+    return pvma_method;
   }
 
   void check_cohorts(vector<string> cohorts, vector<string> htp_files) {
@@ -119,7 +128,7 @@ namespace parameter_checks {
   }
 
   void check_anno_file_indexed(string file) {
-    if (!util::file_exists(file + ".rgi")) {
+    if (!util::file_exists(file + ".rgi") && !util::file_exists(file + ".tbi")) {
       log_warning(file + " is not indexed: this may impact speed and memory usage");
     }
   }

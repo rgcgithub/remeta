@@ -23,7 +23,7 @@ class Gene {
   bool contains(const string& var_id) const;
 
   shared_ptr<const vector<string> > get_variants() const;
-  
+
   size_t size() const;
   string get_name() const;
   string get_chrom() const;

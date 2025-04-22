@@ -42,13 +42,14 @@ typedef struct anno_reader_idx {
  *  Data structure to store records.
  */
 typedef struct annorec_t {
-  string cpra, chrom, ref, alt, gene, annotation;
+  string name, chrom, gene, annotation;
   int pos;
 } annorec_t;
 
 
 class RegenieAnnoReader {
  public:
+  RegenieAnnoReader();
   RegenieAnnoReader(string filepath);
   ~RegenieAnnoReader();
   RegenieAnnoReader(const RegenieAnnoReader& other);
@@ -56,11 +57,16 @@ class RegenieAnnoReader {
 
   friend void swap(RegenieAnnoReader& first, RegenieAnnoReader& second);
 
+  void open(const string& filepath);
+
+  void close();
+
   string readline();
   annorec_t readrec();
   annorec_t parse_line(string line);
-  void seek(string chrom, int pos);
+  void seek(const string& chrom, int pos);
   bool eof() { return this->at_eof; };
+  bool closed() const { return this->is_closed; }
   bool indexed() { return this->has_index; };
   
   void build_index(int stride);
@@ -77,6 +83,7 @@ class RegenieAnnoReader {
   // before reading data from BGZF file
   string line_buffer; 
   bool at_eof;
+  bool is_closed;
 
   BGZF* bgzf;
   kstring_t buffer; // buffer to read data from bgzf

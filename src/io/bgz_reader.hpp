@@ -52,7 +52,7 @@ class BgzReader {
 
   string readline();
   virtual void seek(string chrom, hts_pos_t position);
-  bool eof() { return this->at_eof; };
+  virtual bool eof() { return this->at_eof; };
   bool closed() const { return this->is_closed; }
   bool indexed() const { return this->has_index; }
   string get_filepath() const { return this->filepath; }

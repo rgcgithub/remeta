@@ -20,6 +20,8 @@ set(CMAKE_CXX_FLAGS "-O3 -Wall -ffast-math -fvisibility=hidden -fopenmp")
 add_definitions(-DVERSION_NUMBER="v${RM_VERSION}-${GIT_COMMIT}")
 
 add_executable(remeta
+  ${CMAKE_SOURCE_DIR}/src/io/allele_freq_writer.cpp
+  ${CMAKE_SOURCE_DIR}/src/io/anno_reader.cpp
   ${CMAKE_SOURCE_DIR}/src/io/bgz_reader.cpp
   ${CMAKE_SOURCE_DIR}/src/io/bgz_writer.cpp
   ${CMAKE_SOURCE_DIR}/src/io/block_pgen_reader.cpp
@@ -34,6 +36,7 @@ add_executable(remeta
   ${CMAKE_SOURCE_DIR}/src/io/ref_ld_matrix_reader.cpp
   ${CMAKE_SOURCE_DIR}/src/io/ref_ld_matrix_writer.cpp
   ${CMAKE_SOURCE_DIR}/src/io/regenie_anno_reader.cpp
+  ${CMAKE_SOURCE_DIR}/src/io/tabixed_anno_reader.cpp
   ${CMAKE_SOURCE_DIR}/src/meta/es_meta_analyzer.cpp
   ${CMAKE_SOURCE_DIR}/src/meta/genep_meta_analyzer.cpp
   ${CMAKE_SOURCE_DIR}/src/meta/htp_meta_analyzer.cpp
@@ -49,7 +52,6 @@ add_executable(remeta
   ${CMAKE_SOURCE_DIR}/src/logging.cpp
   ${CMAKE_SOURCE_DIR}/src/parameter_checks.cpp
   ${CMAKE_SOURCE_DIR}/src/remeta.cpp
-  ${CMAKE_SOURCE_DIR}/src/run_acatv.cpp
   ${CMAKE_SOURCE_DIR}/src/run_compute_ref_ld.cpp
   ${CMAKE_SOURCE_DIR}/src/run_esma.cpp
   ${CMAKE_SOURCE_DIR}/src/run_genep.cpp

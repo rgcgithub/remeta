@@ -57,6 +57,7 @@ using namespace std;
  */
 const int HTPv4_NA = -2147483648; // for numeric types
 const string HTPv4_ESTIMATED_GENOTYPE_COUNTS_FLAG = "EGC_FLAG";
+const string HTPv4_PVAL_STRING = "HTPv4_PVAL_STRING";
 typedef struct {
   string name;
   string chr;
@@ -82,8 +83,17 @@ typedef struct {
   map<string, string> info;
 } htpv4_record_t;
 
+string htpv4_to_string(int i);
+string htpv4_to_string(double d);
+string htpv4_rounded_double_to_string(double d, bool keep_as_float);
+string htpv4_make_info_string(const map<string, string>& info);
+string htpv4_pval_to_string(double pval, const string& mlog10p, const string& pval_string);
+double htpv4_pval_string_to_log10p(string pval);
+
 class HTPv4Reader : public BgzReader {
  public:
+  HTPv4Reader() : BgzReader(){};
+
   HTPv4Reader(string filepath);
 
   ~HTPv4Reader(){};
@@ -93,6 +103,8 @@ class HTPv4Reader : public BgzReader {
   void open(string filepath);
 
   void seek(string chrom, hts_pos_t position);
+
+  bool eof();
 
   static double get_beta(const htpv4_record_t& rec);
 

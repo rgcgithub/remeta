@@ -1,52 +1,8 @@
 #include "htpv4_writer.hpp"
 
-#include <boost/format.hpp>
+#include <cmath>
 
-string htpv4_to_string(int i) {
-  if (i == HTPv4_NA || i == -9) {
-    return "NA";
-  } else {
-    return to_string(i);
-  }
-}
-
-string htpv4_to_string(double d) {
-  if (d == HTPv4_NA || d == -9) {
-    return "NA";
-  } else {
-    return (boost::format("%1$g") % d).str();
-  }
-}
-
-string htpv4_rounded_double_to_string(double d, bool keep_as_float) {
-  if (d == HTPv4_NA || d == -9) {
-    return "NA";
-  } else if (keep_as_float) {
-    return (boost::format("%1.2f") % d).str();
-  } else {
-    return to_string((int)d);
-  }
-}
-
-string htpv4_make_info_string(map<string, string> info) {
-  string s = "";
-  if (info.size() == 0) {
-    return "NA";
-  }
-  for (auto it = info.begin(); it != info.end(); ++it) {
-    if (it->first == HTPv4_ESTIMATED_GENOTYPE_COUNTS_FLAG) {
-      continue;
-    } else if (it->second != "") {
-      s += it->first + "=" + it->second;
-    } else {
-      s += it->first;
-    }
-    if (next(it) != info.end()) {
-      s += ";";
-    }
-  }
-  return s;
-}
+#include "../util.hpp"
 
 void HTPv4Writer::writerec(htpv4_record_t rec) {
   bool keep_as_float = rec.info.count(HTPv4_ESTIMATED_GENOTYPE_COUNTS_FLAG) > 0;
@@ -62,7 +18,11 @@ void HTPv4Writer::writerec(htpv4_record_t rec) {
     + htpv4_to_string(rec.effect) + "\t"
     + htpv4_to_string(rec.lci_effect) + "\t"
     + htpv4_to_string(rec.uci_effect) + "\t"
-    + htpv4_to_string(rec.pval) + "\t"
+    + htpv4_pval_to_string(
+      rec.pval,
+      rec.info.count("LOG10P") > 0 ? rec.info.at("LOG10P") : "",
+      rec.info.count(HTPv4_PVAL_STRING) > 0 ? rec.info.at(HTPv4_PVAL_STRING) : ""
+    ) + "\t"
     + htpv4_to_string(rec.aaf) + "\t"
     + htpv4_to_string(rec.num_cases) + "\t"
     + htpv4_rounded_double_to_string(rec.cases_ref, keep_as_float) + "\t"
