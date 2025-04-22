@@ -178,7 +178,7 @@ How remeta stores LD matrices for conditional analysis
 </p>
 
 <p align="center">
-<img src="/remeta/img/ld_overview.png" alt="LD diagram" width="70%" />
+<img src="/img/ld_overview.png" alt="LD diagram" width="70%" />
 </p>
 
 <p><strong>remeta</strong> has two options for computing the LD of exome variants and imputed variants depending on how they are stored in the input plink2 files.
@@ -287,6 +287,18 @@ This can be achieved in two commands.</p>
 <pre><code class="language-bash">bgzip example/example.annotations
 ./remeta index-anno --file example/example.annotations.gz
 </code></pre>
+<div class="bs-callout bs-callout-default">
+
+**New in v0.9.0**: **remeta** now supports a tabixible 5-column annotation file where column 4 is the chromosome and column 5 is the position. For example
+
+<pre><code>1:55039839:T:C PCSK9 LoF 1 55039839
+1:55039842:G:A PCSK9 missense 1 55039842
+.
+</code></pre>
+
+This file can be tabixed with the command `tabix -s4 -b5 -e5 ${ANNO_FILE}` and used in place of **remeta's** index.
+</div>
+
 <p>When running gene-based meta-analysis, exome variants should be specified using <code>--extract</code> argument to avoid including imputed variants in gene-based tests.
 Alternatively, input <code>htp</code> files with the <code>SOURCE</code> info field can be used to identify variants to include in tests.
 For example, if exome variants have the info field <code>SOURCE=EXOME</code>, then you can pass the <code>--sources EXOME</code> flag to <strong>remeta</strong> to extract them.</p>
