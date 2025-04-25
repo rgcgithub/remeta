@@ -216,6 +216,7 @@ remeta pvma \
 | `--out`                     | STRING | Required | Prefix for output files. |
 | `--method (=stouffers)`     | STRING | Optional | One of `stouffers` or `fishers`. |
 | `--unweighted`              | FLAG | Optional | Omit sample size weighting (affects stouffers only). |
+| `--two-sided`               | FLAG | Optional | Use two-sided p-values when variants have an effect size in each cohort (affects stouffers only). |
 | `--chr`                     | STRING | Optional | Run only on chromosome CHR. |
 | `--extract`                 | FILE | Optional | Include only the variants with IDs listed in this file (one per line). |
 | `--exclude`                 | FILE | Optional | Exclude variants with IDs listed in this file (one per line). |
