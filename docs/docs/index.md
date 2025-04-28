@@ -17,7 +17,7 @@ The main features of **remeta** are:
 See the [**remeta** tutorial](tutorial.md) for a step-by-step example.
 
 ## Citation
-Joseph, T., Mbatchou, J., et al. Computationally efficient meta-analysis of gene-based tests using summary statistics in large-scale genetic studies. bioRxiv (2024). medRxiv (2024). [https://doi.org/10.1101/2024.12.06.24318617](https://doi.org/10.1101/2024.12.06.24318617).
+Joseph, T., Mbatchou, J., et al. Computationally efficient meta-analysis of gene-based tests using summary statistics in large-scale genetic studies. medRxiv (2024). [https://doi.org/10.1101/2024.12.06.24318617](https://doi.org/10.1101/2024.12.06.24318617).
 
 ## License
 **remeta** is distributed under an MIT license.
