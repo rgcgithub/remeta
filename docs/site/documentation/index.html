@@ -227,6 +227,8 @@ By default, <strong>remeta</strong> computes on overall allele frequency per var
 Alternatively <strong>remeta</strong> can use a maximum allele frequency observed across cohorts with the <code>--af-strategy max</code> argument.
 Lastly, <strong>remeta</strong> allele frequencies can be specifed in an allele frequency file using the <code>--aaf-file</code> argument.
 See <a href="../file_formats/">File Formats</a> for a list of available formats.</p>
+<p><strong>Variant weights</strong></p>
+<p>Weights can be adjusted with the <code>--{skato,burden}-weight-strategy</code> argument. Setting <code>--{skato,burden}-weight-strategy beta</code> draws weights $w^{1/2} = \text{Beta}(MAF; 1, 25)$. Setting <code>--{skato,burden}-weight-strategy uniform</code> sets all variant weights to 1.</p>
 <p><strong>Unbalanced binary traits</strong></p>
 <p><strong>remeta</strong> uses two strategies to control type 1 error for unbalanced binary traits:
 a saddlepoint approximation (SPA) applied per mask and an SPA applied per variant.
@@ -301,13 +303,13 @@ Variant level parameters are avaiable for burden test, SKATO, and ACATV, and adj
 <td>Prefix for output files.</td>
 </tr>
 <tr>
-<td><code>--burden-aaf-bins</code> (=0.0001 0.001 0.005 0.01)</td>
+<td><code>--burden-aaf-bins (=0.0001 0.001 0.005 0.01)</code></td>
 <td>FLOAT1 FLOAT2 ...</td>
 <td>Optional</td>
 <td>Allele frequency cutoffs for building masks for burden testing.</td>
 </tr>
 <tr>
-<td><code>--burden-singleton-def</code> (=within)</td>
+<td><code>--burden-singleton-def (=within)</code></td>
 <td>STRING</td>
 <td>Optional</td>
 <td>Define singletons for the singleton mask within cohorts or across cohorts. One of 'within', 'across' or 'omit'.</td>
@@ -481,10 +483,16 @@ Variant level parameters are avaiable for burden test, SKATO, and ACATV, and adj
 <td>Include only the variants with IDs listed in this file (one per line).</td>
 </tr>
 <tr>
+<td><code>--cohort-extract</code></td>
+<td>COHORT1=FILE1 COHORT2=FILE2 ...</td>
+<td>Optional</td>
+<td>Only include variants in FILE_N from COHORT_N and not in --exclude.</td>
+</tr>
+<tr>
 <td><code>--exclude</code></td>
 <td>FILE</td>
 <td>Optional</td>
-<td>Exclude variants with IDs listed in this file (one per line).</td>
+<td>Exclude variants with IDs listed in this file (one per line, overridden by --extract).</td>
 </tr>
 <tr>
 <td><code>--sources</code></td>
@@ -746,17 +754,17 @@ Primary use case is to meta-analyze ACATV, SKATO, and SBAT from <strong>regenie<
   --burden-model ADD-WGR-LR \
   --acatv-model ADD-WGR-ACATV \
   --skato-model ADD-WGR-SKATO-ACAT \
-  --include-sbat \
+  --sbat-model ADD-WGR-BURDEN-SBAT \
   --out OUT_PREFIX
 </code></pre>
-<p><strong>Compute GENE_P from regenie's gene-based test (BT with additive model using Firth regressoin)</strong></p>
+<p><strong>Compute GENE_P from regenie's gene-based test (BT with additive model using Firth regression)</strong></p>
 <pre><code class="language-none">remeta merge \
   --htp GENE_HTP1 ... GENE_HTP23  \
   --genep-def GENEP_DEF_FILE \
   --burden-model ADD-WGR-FIRTH \
   --acatv-model ADD-WGR-ACATV \
   --skato-model ADD-WGR-SKATO-ACAT \
-  --include-sbat \
+  --sbat-model ADD-WGR-BURDEN-SBAT \
   --out OUT_PREFIX
 </code></pre>
 <h3 id="options_3">Options</h3>
@@ -813,7 +821,7 @@ Primary use case is to meta-analyze ACATV, SKATO, and SBAT from <strong>regenie<
 <td></td>
 </tr>
 <tr>
-<td><code>--include-sbat</code></td>
+<td><code>--sbat-model (=ADD-WGR-BURDEN-SBAT)</code></td>
 <td>STRING</td>
 <td>Optional</td>
 <td>Include SBAT PVMA in GENE_P if available.</td>

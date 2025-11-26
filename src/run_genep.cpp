@@ -12,13 +12,12 @@ void run_genep(const vector<string>& htp_files,
                const std::string& burden_model,
                const std::string& acatv_model,
                const std::string& skato_model,
-               const bool& include_sbat,
+               const std::string& sbat_model,
                const std::string& extract,
                const std::string& exclude,
                const bool& drop_regenie_gene,
                const string& out_prefix) {
   pc::check_htp_files(htp_files);
-
   if (genep_def_file != "") {
     pc::check_file_exists(genep_def_file);
   }
@@ -27,7 +26,7 @@ void run_genep(const vector<string>& htp_files,
                          burden_model,
                          acatv_model,
                          skato_model,
-                         include_sbat);
+                         sbat_model);
 
   VariantFilter vf;
   vf.set_skip_genep();
@@ -41,7 +40,7 @@ void run_genep(const vector<string>& htp_files,
     vf.set_exclude_file(exclude);
   }
 
-  if (drop_regenie_gene && include_sbat) {
+  if (drop_regenie_gene && (sbat_model == "ADD-WGR-BURDEN-SBAT" || sbat_model == "ADD-WGR-BURDEN-SBAT-META")) {
     vf.set_keep_remeta_gene_and_sbat();
   } else if (drop_regenie_gene) {
     vf.set_keep_remeta_gene_only();

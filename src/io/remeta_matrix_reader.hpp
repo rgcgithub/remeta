@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 #include "ref_ld_matrix_reader.hpp"
 #include "regenie_ld_matrix_reader.hpp"
@@ -41,12 +42,23 @@ class RemetaMatrixReader {
                         const std::vector<std::string>& gene_variants,
                         const std::string& gene_name);
 
+  void load_gene_ld_mat_sp_double(Eigen::SparseMatrix<double>& G,
+                                  const std::vector<std::string>& gene_variants,
+                                  const std::string& gene_name);
+
   void load_conditional_ld_mats(Eigen::MatrixXf& G,
                                 Eigen::MatrixXf& C,
                                 Eigen::MatrixXf& G_C,
                                 const std::vector<std::string>& gene_variants,
                                 const std::vector<std::string>& conditional_variants,
                                 const std::string& gene_name);
+  
+  void load_conditional_ld_mats_sp_double(Eigen::SparseMatrix<double>& G,
+                                        Eigen::MatrixXf& C,
+                                        Eigen::MatrixXf& G_C,
+                                        const std::vector<std::string>& gene_variants,
+                                        const std::vector<std::string>& conditional_variants,
+                                        const std::string& gene_name);
   
   bool contains_gene(const std::string& gene_name);
 

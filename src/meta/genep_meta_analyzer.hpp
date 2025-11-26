@@ -47,7 +47,7 @@ class GenePMetaAnalyzer : public VariantMetaAnalyzer {
                     const string& burden_model,
                     const string& acatv_model,
                     const string& skato_model,
-                    const bool& include_sbat);
+                    const string& sbat_model);
 
   void add_line(const htpv4_record_t& rec, const int& study_index);
 
@@ -59,7 +59,7 @@ class GenePMetaAnalyzer : public VariantMetaAnalyzer {
   string burden_model;
   string acatv_model;
   string skato_model;
-  bool include_sbat;
+  string sbat_model;
 
   // mask -> index in genep_groups
   map<string, vector<int> > mask_map;

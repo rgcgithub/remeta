@@ -148,17 +148,18 @@ inline void extract_block_corr(vector<ref_ld_matrix_entry_t>& matrix_entries,
 }
 
 inline VectorXf compute_block_mean(const MatrixXf& Gblock) {
-  VectorXf c = Eigen::VectorXf::Ones(Gblock.rows()) / Gblock.rows();
-  VectorXf block_means = c.transpose() * Gblock;
+  VectorXf c = Eigen::VectorXf::Ones(Gblock.rows());
+  VectorXf block_means = (c.transpose() * Gblock) / Gblock.rows();
   return block_means;
 }
 
 inline VectorXf compute_block_variance(const MatrixXf& Gblock, const VectorXf& block_means) {
   VectorXf block_variances = Eigen::VectorXf::Zero(Gblock.cols());
+  VectorXf ones = Eigen::VectorXf::Ones(Gblock.rows());
   for (ssize_t p = 0; p < Gblock.cols(); ++p) {
-    block_variances(p) = Gblock.col(p).transpose() * Gblock.col(p);
+    VectorXf Gblock_centered = Gblock.col(p) - block_means(p) * ones;
+    block_variances(p) = Gblock_centered.transpose() * Gblock_centered;
     block_variances(p) /= Gblock.rows();
-    block_variances(p) -= block_means(p)*block_means(p);
   }
   return block_variances;
 }

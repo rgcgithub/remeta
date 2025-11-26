@@ -56,6 +56,7 @@ class BgzReader {
   bool closed() const { return this->is_closed; }
   bool indexed() const { return this->has_index; }
   string get_filepath() const { return this->filepath; }
+  void set_threads(int threads);
 
   int64_t tell();
   void seek_addr(int64_t addr);

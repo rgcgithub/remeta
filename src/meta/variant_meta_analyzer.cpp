@@ -15,10 +15,14 @@ void run_variant_meta_analysis(VariantMetaAnalyzer& meta,
                                const string& chr) {
   if (chr != "") {
     for (size_t i = 0; i < in_files.size(); ++i) {
-      try {
-        in_files[i].seek(chr, 0);
-      } catch (const runtime_error& err) {
+      if (in_files[i].eof()) {
         continue;
+      } else if (in_files[i].indexed()) {
+        try {
+          in_files[i].seek(chr, 0);
+        } catch (const runtime_error& err) {
+          continue;
+        }
       }
     }
   }
@@ -65,7 +69,7 @@ void run_variant_meta_analysis(VariantMetaAnalyzer& meta,
     last_chr = rec->chr;
 
     if (chr == "" || rec->chr == chr) {
-      if (vf.include_htp_record(*rec)) {
+      if (vf.include_htp_record(*rec, next_record_id)) {
         meta.add_line(htp_records[next_record_id], next_record_id);;
         ++records_added;
       }

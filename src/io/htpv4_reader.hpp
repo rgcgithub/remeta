@@ -83,12 +83,38 @@ typedef struct {
   map<string, string> info;
 } htpv4_record_t;
 
+const htpv4_record_t HTPv4_NULL_RECORD = {
+  "null",
+  "null",
+  HTPv4_NA,
+  "null",
+  "null",
+  "",
+  "",
+  "",
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  HTPv4_NA,
+  map<string, string>()
+};
+
 string htpv4_to_string(int i);
 string htpv4_to_string(double d);
 string htpv4_rounded_double_to_string(double d, bool keep_as_float);
 string htpv4_make_info_string(const map<string, string>& info);
 string htpv4_pval_to_string(double pval, const string& mlog10p, const string& pval_string);
 double htpv4_pval_string_to_log10p(string pval);
+bool htpv4_is_null(const htpv4_record_t& rec);
 
 class HTPv4Reader : public BgzReader {
  public:
@@ -114,10 +140,10 @@ class HTPv4Reader : public BgzReader {
 
   static bool has_se(const htpv4_record_t& rec);
 
+  static double get_mac(const htpv4_record_t& rec);
+
  private:
   string first_line;
 };
-
-
 
 #endif

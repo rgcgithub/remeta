@@ -90,7 +90,7 @@ namespace parameter_checks {
 
   void check_af(double af) {
     if (af < 0 || af > 1) {
-      log_error("af must be between 0 and 1", 1);
+      log_error("allele frequencies must be between 0 and 1", 1);
     }
   }
 
@@ -208,4 +208,58 @@ namespace parameter_checks {
       log_error("1 byte floats do not have enough precision for buffer_r2 " + to_string(buffer_r2), 1);
     }
   }
+
+  vector<string> check_cohort_extract_files(const vector<string>& cohort_extract_files, const vector<string>& cohorts) {
+    vector<string> parsed_cohort_extract_files(cohorts.size(), "");
+    unordered_map<string, int> cohort_map;
+    for (size_t i = 0; i < cohorts.size(); ++i) {
+      cohort_map[cohorts[i]] = i;
+    }
+
+    for ( const string& cohort_file : cohort_extract_files ) {
+      vector<string> cohort_file_parts = util::str_split(cohort_file, "=");
+      if (cohort_file_parts.size() != 2) {
+        log_error("--cohort-extract must be in the form COHORT=FILE (found " + cohort_file + ")", 1);
+      }
+      if (cohort_map.count(cohort_file_parts[0]) == 0) {
+        log_error("cohort " + cohort_file_parts[0] + " in --cohort-extract is not in the list of --cohorts", 1);
+      }
+      check_file_exists(cohort_file_parts[1]);
+      parsed_cohort_extract_files[cohort_map[cohort_file_parts[0]]] = cohort_file_parts[1];
+    }
+    return parsed_cohort_extract_files;
+  }
+
+  void check_arg_is_nonnegative(double arg, const string& arg_name) {
+    if (arg < 0) {
+      log_error(arg_name + " must be non-negative", 1);
+    }
+  }
+
+  void check_arg_is_positive(double arg, const string& arg_name) {
+    if (arg <= 0) {
+      log_error(arg_name + " must be positive", 1);
+    }
+  }
+
+  void check_arg_only_one_is_true(vector<bool> args, const vector<string>& arg_names) {
+    int n_true = 0;
+    for (bool arg : args) {
+      if (arg) {
+        n_true++;
+      }
+    }
+    if (n_true > 1) {
+      string err = "only one of ";
+      for (size_t i = 0; i < args.size(); ++i) {
+        err += arg_names[i];
+        if (i < args.size() - 1) {
+          err += ", ";
+        }
+      }
+      err += " can be set";
+      log_error(err, 1);
+    }
+  }
+
 }

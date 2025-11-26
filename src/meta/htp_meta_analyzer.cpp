@@ -4,11 +4,14 @@
 #include <algorithm>
 #include <chrono>
 #include <exception>
+#include <set>
 #include <string>
 #include <unordered_map>
+using std::set;
 using std::string;
 using std::unordered_map;
 
+#include <boost/format.hpp>
 #include <boost/math/distributions/beta.hpp>
 #include <boost/math/distributions/normal.hpp>
 #include <boost/math/special_functions/fpclassify.hpp>
@@ -28,6 +31,10 @@ typedef Eigen::Triplet<double> Triplet;
 
 bool vector_contains(const vector<double>& vec, const double& val) {
   return std::find(vec.begin(), vec.end(), val) != vec.end();
+}
+
+bool unordered_set_contains(const std::unordered_set<std::string>& vec, const std::string& val) {
+  return vec.find(val) != vec.end();
 }
 
 HTPMetaVariant::HTPMetaVariant(const variant_id& id,
@@ -56,10 +63,63 @@ HTPMetaVariant::HTPMetaVariant(const variant_id& id,
   this->max_aaf        = 0;
   this->max_mac        = 0;
   this->aaf            = 0;
-  this->burden_weight  = 0;
-  this->skato_weight   = 0;
-  this->acatv_weight   = 0;
   this->is_singleton   = false;
+}
+
+GeneSumStats::GeneSumStats(int nvariants, int nmasks, int nstudies)
+: nvariants(nvariants)
+, nmasks(nmasks)
+, nstudies(nstudies)
+, max_ccr(0)
+, found_at_least_one_conditional_variant(false)
+, found_at_least_one_ld_mat(false) {
+  this->masks                    = MatrixXd(nmasks, nvariants);
+  this->mask_ncases_per_study    = MatrixXi::Zero(nmasks, nstudies);
+  this->mask_ncontrols_per_study = MatrixXi::Zero(nmasks, nstudies);
+  this->mask_betas               = MatrixXd::Zero(nmasks, nstudies);
+  this->mask_ses                 = MatrixXd::Zero(nmasks, nstudies);
+  this->mask_aafs                = MatrixXd::Zero(nmasks, nstudies);
+  this->mask_cases_het           = MatrixXd::Zero(nmasks, nstudies);
+  this->mask_cases_alt           = MatrixXd::Zero(nmasks, nstudies);
+  this->mask_controls_het        = MatrixXd::Zero(nmasks, nstudies);
+  this->mask_controls_alt        = MatrixXd::Zero(nmasks, nstudies);
+  this->mask_cf                  = VectorXd::Ones(nmasks);
+  this->mask_pval                = VectorXd::Constant(nmasks, -1);  // -1 indicates no result
+  this->mask_nhet                = VectorXd::Zero(nmasks);
+  this->mask_nhom_alt            = VectorXd::Zero(nmasks);
+  this->mask_nhom_ref            = VectorXd::Zero(nmasks);
+  this->mask_case_control_ratio  = VectorXd::Zero(nmasks);
+  this->mask_aaf                 = VectorXd::Zero(nmasks);
+  this->mask_max_mac             = VectorXi::Zero(nmasks);
+  this->mask_indices             = vector<vector<int> >(nmasks);
+  this->mask_cohort_idx          = vector<unordered_set<int> >(nmasks);
+  this->mask_variants            = vector<vector<string> >(nmasks);
+  this->mask_ncases              = vector<int>(nmasks, 0);
+  this->mask_ncontrols           = vector<int>(nmasks, 0);
+  this->mask_selectors           = vector<SpMat>(nmasks);
+  this->mask_collapsors          = vector<SpMat>(nmasks);
+  this->scores                   = MatrixXd::Zero(nvariants, nstudies);
+  this->scorev                   = MatrixXd::Zero(nvariants, nstudies);
+  this->betas                    = MatrixXd::Zero(nvariants, nstudies);
+  this->ses                      = MatrixXd::Zero(nvariants, nstudies);
+  this->aafs                     = MatrixXd::Zero(nvariants, nstudies);
+  this->ncases                   = MatrixXd::Zero(nvariants, nstudies);
+  this->cases_het                = MatrixXd::Zero(nvariants, nstudies);
+  this->cases_alt                = MatrixXd::Zero(nvariants, nstudies);
+  this->ncontrols                = MatrixXd::Zero(nvariants, nstudies);
+  this->controls_het             = MatrixXd::Zero(nvariants, nstudies);
+  this->controls_alt             = MatrixXd::Zero(nvariants, nstudies);
+  this->meta_aafs                = VectorXd::Zero(nvariants);
+  this->meta_aacs                = VectorXd::Zero(nvariants);
+  this->is_singleton             = VectorXi::Zero(nvariants);
+  this->burden_weights           = VectorXd::Zero(nvariants);
+  this->skato_weights            = VectorXd::Zero(nvariants);
+  this->acatv_weights            = VectorXd::Zero(nvariants);
+  this->study_sample_size        = vector<double>(nstudies, 0);
+  this->skato_var_to_collapse    = VectorXd::Zero(nvariants);
+  this->collapse_anno_indicators = VectorXd::Zero(nvariants);
+  this->max_ccr                  = 0;
+  this->ld_variants_found        = vector<unordered_set<variant_id> >(nstudies);
 }
 
 HTPMetaAnalyzer::HTPMetaAnalyzer(const string& trait_name,
@@ -82,6 +142,7 @@ HTPMetaAnalyzer::HTPMetaAnalyzer(const string& trait_name,
  , sv_spa_case_control_ratio(0)
  , af_file("")
  , nstudies(cohorts.size())
+ , mask_max_aaf(0)
  , variants(unordered_map<variant_id, HTPMetaVariant>())
  , mask_set(mask_def_file, vector<double>{1})
  , anno_map(annotation_file, mask_set)
@@ -99,7 +160,9 @@ HTPMetaAnalyzer::HTPMetaAnalyzer(const string& trait_name,
  , recompute_score(false)
  , keep_variants_not_in_ld_mat(false)
  , write_freqs(false)
- , freq_writer(nullptr) {
+ , freq_writer(nullptr)
+ , collapse_anno_int(-1)
+ , collapse_anno(false) {
   for (const string& prefix : ld_file_prefixes) {
     ld_mat_readers.push_back(
       RemetaMatrixReader()
@@ -218,6 +281,7 @@ void HTPMetaAnalyzer::set_run_skato(const vector<double>& af_bins,
                                     const vector<double>& rho_values,
                                     const weight_strategy_e& weight_strategy,
                                     int min_aac,
+                                    int collapse_below_aac,
                                     double mask_spa_pval,
                                     double mask_spa_case_control_ratio,
                                     double sv_spa_pval,
@@ -234,6 +298,7 @@ void HTPMetaAnalyzer::set_run_skato(const vector<double>& af_bins,
   this->skato_params.rho_values = rho_values;
   this->skato_params.weight_strategy = weight_strategy;
   this->skato_params.min_aac = min_aac;
+  this->skato_params.collapse_below_aac = collapse_below_aac;
   std::sort(this->af_bins.begin(), this->af_bins.end());
   this->mask_set = MaskSet(this->mask_def_file, this->af_bins);
 
@@ -325,7 +390,7 @@ void HTPMetaAnalyzer::add_line(const htpv4_record_t& rec, const int& study_index
   }
   double scorev = this->get_scorev(rec);
   if (scorev <= 0 || boost::math::isnan(scorev) || boost::math::isinf(scorev)) {
-    log_debug(rec.name + " in study " + to_string(study_index + 1) + " has bad skatv value, skipping...");
+    log_debug(rec.name + " in study " + this->cohorts[study_index] + " has bad skatv value, skipping...");
     return ;
   }
   this->check_info(rec);
@@ -400,24 +465,13 @@ void HTPMetaAnalyzer::clear_before(const string& chrom, const int& before_pos) {
   }
 }
 
-vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
-  log_debug("entering HTPMetaAnalyzer::meta_analyze_gene");
-  log_debug("meta-analyzing " + g.get_name());
-
-  std::chrono::time_point<std::chrono::steady_clock> start;
-  std::chrono::duration<double> d;
-
-  vector<variant_id>                    variants_found;
-  unordered_map<variant_id, int>        variant_idx;
-  vector<int>                           variant_annotations;
-
-  boost::math::beta_distribution<> beta(1, 25);
-  start = std::chrono::steady_clock::now();
+void HTPMetaAnalyzer::get_variants(vector<variant_id>& variants_found,
+                                   vector<int>& variant_annotations,
+                                   Gene g) {
   int variants_without_af = 0;
   for (const string& vid : *g.get_variants()) {
     if (this->variants.count(vid) > 0) {
       HTPMetaVariant *variant = &this->variants[vid];
-
 
       if (this->af_strategy == USE_MAX_AF) {
         variant->aaf = variant->max_aaf;
@@ -443,31 +497,8 @@ vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
       }
 
       if (variant->aaf <= this->mask_max_aaf) {
-        variant_idx[vid] = variants_found.size();
         variants_found.push_back(vid);
         variant_annotations.push_back(anno);
-
-        double weight_aaf = variant->aac / variant->an;
-        double weight_maf = weight_aaf > 0.5 ? 1 - weight_aaf : weight_aaf;
-        if (this->burden_params.weight_strategy == USE_BETA_WEIGHTS) {
-          variant->burden_weight = pdf(beta, weight_maf);
-        } else {
-          variant->burden_weight = 1;
-        }
-        if (this->skato_params.weight_strategy == USE_BETA_WEIGHTS && variant->aac >= this->skato_params.min_aac) {
-          variant->skato_weight = pdf(beta, weight_maf);
-        } else if (variant->aac >= this->skato_params.min_aac) {
-          variant->skato_weight = 1;
-        } else {
-          variant->skato_weight = 0;
-        }
-        if (this->acatv_params.weight_strategy == USE_BETA_WEIGHTS && variant->aac >= this->acatv_params.min_aac) {
-          variant->acatv_weight = pow(pdf(beta, weight_maf), 2) * weight_maf * (1 - weight_maf);
-        } else if (variant->aac >= this->acatv_params.min_aac) {
-          variant->acatv_weight = 1;
-        } else {
-          variant->acatv_weight = 0;
-        }
       }
     }
   }
@@ -478,229 +509,240 @@ vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
       "these will be omitted from masks"
     );
   }
-  d = std::chrono::steady_clock::now() - start;
-  log_debug("collecting variants: " + to_string(d.count()) + " seconds");
-  log_debug(to_string(variants_found.size()) + " variants found");
+}
 
-  start = std::chrono::steady_clock::now();
-  int nmasks = this->mask_set.n_masks();
+GeneSumStats HTPMetaAnalyzer::collect_sum_stats(const vector<variant_id>& variants_found,
+                                                const vector<int>& variant_annotations,
+                                                const MaskSet& mask_set,
+                                                const Gene& g) {
+  std::chrono::time_point<std::chrono::steady_clock> start;
+  std::chrono::duration<double> d;
+  string gene_name = g.get_name();
+
+  int nmasks = mask_set.n_masks();
   int nstudies = this->cohorts.size();
+  GeneSumStats sum_stats(variants_found.size(), nmasks, nstudies);
+
+  boost::math::beta_distribution<> beta(1, 25);
+  double weight_aaf = 0;
+  double weight_maf = 0;
+  log_debug(" * scanning through variants...");
   // Indicator matrix. Entry i, j is 1 if variants_found[j]
   // is contained in mask_set.get_mask(i).
-  MatrixXd masks(nmasks, variants_found.size());
-  MatrixXi mask_ncases_per_study = MatrixXi::Zero(nmasks, nstudies);
-  MatrixXi mask_ncontrols_per_study = MatrixXi::Zero(nmasks, nstudies);
-  MatrixXd scores(variants_found.size(), nstudies);
-  MatrixXd scorev(variants_found.size(), nstudies);
-  MatrixXd betas(variants_found.size(), nstudies);
-  MatrixXd ses(variants_found.size(), nstudies);
-  MatrixXd aafs(variants_found.size(), nstudies);
-  MatrixXd ncases(variants_found.size(), nstudies);
-  MatrixXd cases_het(variants_found.size(), nstudies);
-  MatrixXd cases_alt(variants_found.size(), nstudies);
-  MatrixXd ncontrols(variants_found.size(), nstudies);
-  MatrixXd controls_het(variants_found.size(), nstudies);
-  MatrixXd controls_alt(variants_found.size(), nstudies);
-  VectorXd burden_weights(variants_found.size());
-  VectorXd skato_weights(variants_found.size());
-  VectorXd acatv_weights(variants_found.size());
-  MatrixXi masks_max_mac = VectorXi::Zero(nmasks);
-  vector<vector<int> > mask_indices(nmasks);
-  vector<unordered_set<int> > mask_cohort_idx(nmasks);
-  vector<double> study_sample_size(nstudies, 0);
-  vector<vector<string> > mask_variants(nmasks);
+  bool collapse_anno_found = false;
   for (size_t j = 0; j < variants_found.size(); ++j) {
     HTPMetaVariant variant = this->variants[variants_found[j]];
-    burden_weights[j] = variant.burden_weight;
-    skato_weights[j] = variant.skato_weight;
-    acatv_weights[j] = variant.acatv_weight;
-    scores.row(j) = variant.scores;
-    scorev.row(j) = variant.scorev;
-    betas.row(j) = variant.betas;
-    ses.row(j) = variant.ses;
-    aafs.row(j) = variant.aafs;
-    cases_het.row(j) = variant.cases_het;
-    cases_alt.row(j) = variant.cases_alt;
-    ncases.row(j) = variant.ncases.cast<double>();
-    controls_het.row(j) = variant.controls_het;
-    controls_alt.row(j) = variant.controls_alt;
-    ncontrols.row(j) = variant.ncontrols.cast<double>();
+    sum_stats.scores.row(j) = variant.scores;
+    sum_stats.scorev.row(j) = variant.scorev;
+    sum_stats.betas.row(j) = variant.betas;
+    sum_stats.ses.row(j) = variant.ses;
+    sum_stats.aafs.row(j) = variant.aafs;
+    sum_stats.cases_het.row(j) = variant.cases_het;
+    sum_stats.cases_alt.row(j) = variant.cases_alt;
+    sum_stats.ncases.row(j) = variant.ncases.cast<double>();
+    sum_stats.controls_het.row(j) = variant.controls_het;
+    sum_stats.controls_alt.row(j) = variant.controls_alt;
+    sum_stats.ncontrols.row(j) = variant.ncontrols.cast<double>();
+    sum_stats.meta_aafs(j) = variant.aaf;
+    sum_stats.meta_aacs(j) = variant.aac;
+    sum_stats.is_singleton(j) = variant.is_singleton ? 1 : 0;
+
+    weight_aaf = variant.aac / variant.an;
+    weight_maf = weight_aaf > 0.5 ? 1 - weight_aaf : weight_aaf;
+    if (this->burden_params.weight_strategy == USE_BETA_WEIGHTS) {
+      sum_stats.burden_weights[j] = pdf(beta, weight_maf);
+    } else {
+      sum_stats.burden_weights[j] = 1;
+    }
+    if (this->skato_params.weight_strategy == USE_BETA_WEIGHTS && variant.aac >= this->skato_params.min_aac) {
+      sum_stats.skato_weights[j] = pdf(beta, weight_maf);
+    } else if (variant.aac >= this->skato_params.min_aac) {
+      sum_stats.skato_weights[j] = 1;
+    } else {
+      sum_stats.skato_weights[j] = 0;
+    }
+    if (this->acatv_params.weight_strategy == USE_BETA_WEIGHTS && variant.aac >= this->acatv_params.min_aac) {
+      sum_stats.acatv_weights[j] = pow(pdf(beta, weight_maf), 2) * weight_maf * (1 - weight_maf);
+    } else if (variant.aac >= this->acatv_params.min_aac) {
+      sum_stats.acatv_weights[j] = 1;
+    } else {
+      sum_stats.acatv_weights[j] = 0;
+    }
 
     if (this->conditional_variants_set.count(variant.id) > 0) {
-      scores.row(j).setZero();
-      scorev.row(j).setZero();
+      sum_stats.scores.row(j).setZero();
+      sum_stats.scorev.row(j).setZero();
+    }
+
+    if (variant.aac < this->skato_params.collapse_below_aac) {
+      sum_stats.skato_var_to_collapse[j] = 1;
+    } else {
+      sum_stats.skato_var_to_collapse[j] = 0;
     }
 
     for (int i = 0; i < nmasks; ++i) {
       if (mask_set.mask_contains(i, variant_annotations[j], variant.aaf, variant.is_singleton)) {
-        masks(i, j) = 1;
-        masks_max_mac(i) = max(masks_max_mac(i), variant.max_mac);
-        mask_indices[i].push_back(j);
-        mask_cohort_idx[i].insert(variant.cohort_idx.begin(), variant.cohort_idx.end());
+        sum_stats.masks(i, j) = 1;
+        sum_stats.mask_max_mac(i) = max(sum_stats.mask_max_mac(i), variant.max_mac);
+        sum_stats.mask_indices[i].push_back(j);
+        sum_stats.mask_cohort_idx[i].insert(variant.cohort_idx.begin(), variant.cohort_idx.end());
 
         for (int k = 0; k < nstudies; ++k) {
-          mask_ncases_per_study(i, k) = max(mask_ncases_per_study(i, k), variant.ncases(k));
-          mask_ncontrols_per_study(i, k) = max(mask_ncontrols_per_study(i, k), variant.ncontrols(k));
+          sum_stats.mask_ncases_per_study(i, k) = max(sum_stats.mask_ncases_per_study(i, k), variant.ncases(k));
+          sum_stats.mask_ncontrols_per_study(i, k) = max(sum_stats.mask_ncontrols_per_study(i, k), variant.ncontrols(k));
         }
 
         if (this->write_mask_snplist) {
-          mask_variants[i].push_back(variants_found[j]);
+          sum_stats.mask_variants[i].push_back(variants_found[j]);
         }
       } else {
-        masks(i, j) = 0;
+        sum_stats.masks(i, j) = 0;
       }
     }
 
     for (int k = 0; k < nstudies; ++k) {
-      study_sample_size[k] = max(study_sample_size[k], variant.sample_sizes[k]);
+      sum_stats.study_sample_size[k] = max(sum_stats.study_sample_size[k], variant.sample_sizes[k]);
+    }
+
+    if (this->collapse_anno && variant_annotations[j] == this->collapse_anno_int) {
+      sum_stats.collapse_anno_indicators[j] = 1;
+      collapse_anno_found = true;
+    } else {
+      sum_stats.collapse_anno_indicators[j] = 0;
     }
   }
 
-  vector<int> mask_ncases(nmasks, 0);
-  vector<int> mask_ncontrols(nmasks, 0);
-  double max_ccr = 0;
-  for (int i = 0; i < nmasks; ++i) {
-    mask_ncases[i] = mask_ncases_per_study.row(i).sum();
-    mask_ncontrols[i] = mask_ncontrols_per_study.row(i).sum();
-    max_ccr = max(max_ccr, (double)mask_ncases[i] / (double)mask_ncontrols[i]);
-  }
+  log_debug(" * construcing selectors and collapsors...");
+  for (int m = 0; m < nmasks; ++m) {
+    sum_stats.mask_ncases[m] = sum_stats.mask_ncases_per_study.row(m).sum();
+    sum_stats.mask_ncontrols[m] = sum_stats.mask_ncontrols_per_study.row(m).sum();
+    sum_stats.max_ccr = max(sum_stats.max_ccr, (double)sum_stats.mask_ncases[m] / (double)sum_stats.mask_ncontrols[m]);
 
-  d = std::chrono::steady_clock::now() - start;
-  log_debug("building masks: " + to_string(d.count()) + " seconds");
+    vector<Triplet> selector_triplet_list(sum_stats.mask_indices[m].size());
 
-  if (masks.sum() == 0) {
-    log_warning("no variants found in " + g.get_name() + " masks");
-    return vector<htpv4_record_t>();
-  }
+    int nvar_to_collapse = sum_stats.masks.row(m) * sum_stats.skato_var_to_collapse;
+    int nvar_to_keep = sum_stats.masks.row(m).sum() - nvar_to_collapse;
+    int collapsor_idx = 0;
+    vector<Triplet> collapsor_triplet_list(sum_stats.mask_indices[m].size());
 
-  if (this->write_mask_snplist) {
-    log_debug("writing mask snplist");
-    for (int m = 0; m < nmasks; ++m) {
-      if (mask_variants[m].size() == 0) continue;
+    for (size_t k = 0; k < sum_stats.mask_indices[m].size(); ++k) {
+      selector_triplet_list.push_back(Triplet(k, sum_stats.mask_indices[m][k], 1));
 
-      this->snplist_writer->write(g.get_name() + "." + mask_set.get_mask_alt(m) + "\t");
-      for (size_t j = 0; j < mask_variants[m].size() - 1; ++j) {
-        this->snplist_writer->write(mask_variants[m][j] + ",");
-      }
-      if (mask_variants[m].size() > 0) {
-        this->snplist_writer->write(mask_variants[m][mask_variants[m].size() - 1] + "\n");
+      if (sum_stats.skato_var_to_collapse(sum_stats.mask_indices[m][k]) > 0 || sum_stats.skato_weights(sum_stats.mask_indices[m][k]) == 0) {
+        collapsor_triplet_list[k] = Triplet(nvar_to_keep, k, 1);
+      } else {
+        collapsor_triplet_list[k] = Triplet(collapsor_idx, k, 1);
+        ++collapsor_idx;
       }
     }
+
+    SpMat selector(sum_stats.mask_indices[m].size(), variants_found.size());
+    selector.setFromTriplets(selector_triplet_list.begin(), selector_triplet_list.end());
+    sum_stats.mask_selectors[m] = selector;
+
+    SpMat collapsor(nvar_to_keep + 1, sum_stats.mask_indices[m].size());
+    collapsor.setFromTriplets(collapsor_triplet_list.begin(), collapsor_triplet_list.end());
+    sum_stats.mask_collapsors[m] = collapsor;
   }
 
-  vector<string> gene_conditional_variants;
-  vector<int> gene_conditional_variants_idx;
-  unordered_set<string> available_conditional_variants;
-  MatrixXd gene_cond_scores;
-  MatrixXd gene_cond_scorev;
   if (this->conditional_variants.size() > 0) {
-    log_debug("extracting conditional variants");
+    log_debug(" * checking conditional variants");
+    unordered_set<string> available_conditional_variants;
+    vector<int> gene_conditional_variants_idx;
     vector<string> variant_ids;
     for (int s = 0; s < nstudies; ++s) {
-      if (ld_mat_readers[s].contains_gene(g.get_name())) {
-        ld_mat_readers[s].load_gene_variant_ids(variant_ids, g.get_name());
+      if (ld_mat_readers[s].contains_gene(gene_name)) {
+        ld_mat_readers[s].load_gene_variant_ids(variant_ids, gene_name);
         available_conditional_variants.insert(variant_ids.begin(), variant_ids.end());
 
-        ld_mat_readers[s].load_buffer_variant_ids(variant_ids, g.get_name());
+        ld_mat_readers[s].load_buffer_variant_ids(variant_ids, gene_name);
         available_conditional_variants.insert(variant_ids.begin(), variant_ids.end());
       }
     }
 
     for (const int& idx: this->conditional_sorted_variants_idx) {
-      if ((int)gene_conditional_variants.size() < this->max_cond_var_per_gene &&
+      if ((int)sum_stats.gene_conditional_variants.size() < this->max_cond_var_per_gene &&
           available_conditional_variants.count(this->conditional_variants[idx]) > 0) {
-        gene_conditional_variants.push_back(this->conditional_variants[idx]);
+        sum_stats.gene_conditional_variants.push_back(this->conditional_variants[idx]);
         gene_conditional_variants_idx.push_back(idx);
       }
     }
-    gene_cond_scores = this->conditional_scores(gene_conditional_variants_idx, Eigen::all);
-    gene_cond_scorev = this->conditional_scorev(gene_conditional_variants_idx, Eigen::all);
+    sum_stats.gene_cond_scores = this->conditional_scores(gene_conditional_variants_idx, Eigen::all);
+    sum_stats.gene_cond_scorev = this->conditional_scorev(gene_conditional_variants_idx, Eigen::all);
   }
 
   start = std::chrono::steady_clock::now();
-  vector<double> sample_sizes;
-  vector<unordered_set<variant_id> > ld_variants_found(nstudies);
-  MatrixXd mask_betas = MatrixXd::Zero(nmasks, nstudies);
-  MatrixXd mask_ses = MatrixXd::Zero(nmasks, nstudies);
-  MatrixXd mask_aafs = MatrixXd::Zero(nmasks, nstudies);
-  MatrixXd mask_cases_het = MatrixXd::Zero(nmasks, nstudies);
-  MatrixXd mask_cases_alt = MatrixXd::Zero(nmasks, nstudies);
-  MatrixXd mask_controls_het = MatrixXd::Zero(nmasks, nstudies);
-  MatrixXd mask_controls_alt = MatrixXd::Zero(nmasks, nstudies);
-  bool found_at_least_one_ld_mat = false;
-  bool found_at_least_one_conditional_variant = false;
-  SpMat gene_ld_mat(variants_found.size(), variants_found.size());
-  SpMat gene_buffer_ld_mat(variants_found.size(), gene_conditional_variants.size());
-  SpMat buffer_ld_mat(gene_conditional_variants.size(), gene_conditional_variants.size());
+  sum_stats.found_at_least_one_ld_mat = false;
+  sum_stats.found_at_least_one_conditional_variant = false;
+  sum_stats.gene_ld_mat = SpMat(variants_found.size(), variants_found.size());
+  sum_stats.gene_buffer_ld_mat = MatrixXd(variants_found.size(), sum_stats.gene_conditional_variants.size());
+  sum_stats.buffer_ld_mat = MatrixXd(sum_stats.gene_conditional_variants.size(), sum_stats.gene_conditional_variants.size());
   for (int s = 0; s < nstudies; ++s) {
-    if (this->ld_mat_required() && !ld_mat_readers[s].contains_gene(g.get_name())) {
-      log_warning("LD matrix for " + g.get_name() + " is not found in study " + to_string(s+1));
+    if (this->ld_mat_required() && !ld_mat_readers[s].contains_gene(gene_name)) {
+      log_warning("LD matrix for " + gene_name + " is not found in cohort " + this->cohorts[s] + ", skipping...");
+      sum_stats.scores.col(s).setZero();
       continue;
     }
 
-    MatrixXf Gf;
+    SpMat Gsp;
+    // MatrixXf Gf;
     MatrixXf G_Cf;
     MatrixXf Cf;
-    MatrixXd G;       // gene_ld_mat
+    //MatrixXd G;       // gene_ld_mat
     MatrixXd G_C;     // gene_buffer_ld_mat
     MatrixXd C;       // inverse of buffer_ld_mat
 
-    if (gene_conditional_variants.size() > 0) {
+    if (sum_stats.gene_conditional_variants.size() > 0) {
       log_debug("loading conditional LD matrices");
-      ld_mat_readers[s].load_conditional_ld_mats(
-        Gf,
+      ld_mat_readers[s].load_conditional_ld_mats_sp_double(
+        Gsp,
         Cf,
         G_Cf,
         variants_found,
-        gene_conditional_variants,
-        g.get_name()
+        sum_stats.gene_conditional_variants,
+        gene_name
       );
-      SpMatF Gsp = Gf.sparseView();
-      Gf.resize(0, 0);
-      G = MatrixXd(Gsp.cast<double>());
-      // G = Gf.cast<double>();
-      // Gf.resize(0, 0);
       C = Cf.cast<double>();
       Cf.resize(0, 0);
       G_C = G_Cf.cast<double>();
       G_Cf.resize(0, 0);
-      found_at_least_one_conditional_variant = found_at_least_one_conditional_variant || (C.array() > 0).any();
-      //C = (1 - 1e-3)*C + 1e-3*MatrixXd(C.diagonal().asDiagonal()); // ensure C is well-conditioned
+      sum_stats.found_at_least_one_conditional_variant = sum_stats.found_at_least_one_conditional_variant || (C.array() > 0).any();
     } else if (this->ld_mat_required()) {
       log_debug("loading marginal LD matrices");
-      ld_mat_readers[s].load_gene_ld_mat(Gf, variants_found, g.get_name());
-      SpMatF Gsp = Gf.sparseView();
-      Gf.resize(0, 0);
-      G = MatrixXd(Gsp.cast<double>());
-      // G = Gf.cast<double>();
-      // Gf.resize(0, 0);
+      ld_mat_readers[s].load_gene_ld_mat_sp_double(Gsp, variants_found, gene_name);
     } else {
-      log_debug("assuming diagonal LD matrices");
-      G = MatrixXd::Zero(variants_found.size(), variants_found.size());
+      log_debug("ignoring LD matrices");
+      Gsp = SpMat(variants_found.size(), variants_found.size());
     }
 
+    VectorXd G_diag = VectorXd(Gsp.diagonal());
     if (this->ignore_mask_ld) {
-      MatrixXd G_diag = G.diagonal();
-      G = G_diag.asDiagonal();
+      log_debug("assuming diagonal LD matrices");
+      Gsp = SpMat(G_diag.asDiagonal());
     }
 
+    VectorXd G_diag_update = VectorXd::Zero(G_diag.size());
     for (size_t i = 0; i < variants_found.size(); ++i) {
-      if (G(i, i) > 0 && scores(i, s) != 0) {
-        ld_variants_found[s].insert(variants_found[i]);
-        found_at_least_one_ld_mat = true;
-      } else if (G(i, i) == 0 && scores(i, s) != 0 && !this->keep_variants_not_in_ld_mat) {
-        //log_warning(variants_found[i] + " does not have an entry in LD matrix for study " + to_string(s+1));
-        scores(i, s) = 0;
-      } else if (G(i, i) == 0 && scores(i, s) != 0 && this->keep_variants_not_in_ld_mat) {
-        ld_variants_found[s].insert(variants_found[i]);
-        G(i, i) = scorev(i, s);
-        found_at_least_one_ld_mat = true;
+      if (G_diag(i) > 0 && sum_stats.scores(i, s) != 0) {
+        sum_stats.ld_variants_found[s].insert(variants_found[i]);
+        sum_stats.found_at_least_one_ld_mat = true;
+      } else if (G_diag(i) == 0 && sum_stats.scores(i, s) != 0 && !this->keep_variants_not_in_ld_mat) {
+        log_warning(variants_found[i] + " does not have an entry in LD matrix for cohort " + this->cohorts[s]);
+        sum_stats.scores(i, s) = 0;
+      } else if (G_diag(i) == 0 && sum_stats.scores(i, s) != 0 && this->keep_variants_not_in_ld_mat) {
+        sum_stats.ld_variants_found[s].insert(variants_found[i]);
+        G_diag_update(i) = sum_stats.scorev(i, s);
+        sum_stats.found_at_least_one_ld_mat = true;
       }
+    }
+    if (this->keep_variants_not_in_ld_mat) {
+      G_diag = G_diag + G_diag_update;
+      Gsp = Gsp + SpMat(G_diag_update.asDiagonal());
     }
 
     // The LD matrix exists but contains none of the requested variants
-    if (G.isZero(0)) {
-      log_warning("LD matrix for study " + to_string(s+1) + " does not contain any of the requested variants");
+    if (Gsp.nonZeros() == 0) {
+      log_warning("LD matrix for cohort " + this->cohorts[s] + " does not contain any of the requested variants");
       continue;
     }
 
@@ -711,48 +753,42 @@ vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
       Eigen::setNbThreads(1);
       #pragma omp parallel for schedule(dynamic)
 #endif
-      for (int m = 0; m < nmasks; ++m) {
-        if (mask_indices[m].size() == 0 || (mask_ncases_per_study(m, s) + mask_ncontrols_per_study(m, s) == 0)) continue;
-        // mask_aafs(m, s) = max(
-        //   1.0 / (2.0*study_sample_size[s]),
-        //   stat::misc::estimate_burden_aaf(aafs(mask_indices[m], s), G, mask_indices[m])
-        // );
-        mask_cases_het(m, s) = stat::misc::estimate_nhets(
-          cases_het(mask_indices[m], s),
-          aafs(mask_indices[m], s),
-          G,
-          mask_indices[m]
+      for (int m = 0; m < sum_stats.nmasks; ++m) {
+        if (sum_stats.mask_indices[m].size() == 0 || (sum_stats.mask_ncases_per_study(m, s) + sum_stats.mask_ncontrols_per_study(m, s) == 0)) continue;
+        SpMat Gsp_mask = sum_stats.mask_selectors[m] * Gsp * sum_stats.mask_selectors[m].transpose();
+
+        sum_stats.mask_cases_het(m, s) = stat::misc::estimate_nhets(
+          sum_stats.cases_het(sum_stats.mask_indices[m], s),
+          sum_stats.aafs(sum_stats.mask_indices[m], s),
+          Gsp_mask
         );
-        mask_cases_alt(m, s) = stat::misc::estimate_nalts(
-          cases_alt(mask_indices[m], s),
-          aafs(mask_indices[m], s),
-          G,
-          mask_indices[m]
+        sum_stats.mask_cases_alt(m, s) = stat::misc::estimate_nalts(
+          sum_stats.cases_alt(sum_stats.mask_indices[m], s),
+          sum_stats.aafs(sum_stats.mask_indices[m], s),
+          Gsp_mask
         );
         if (this->trait_type == BT) {
-          mask_controls_het(m, s) = stat::misc::estimate_nhets(
-            controls_het(mask_indices[m], s),
-            aafs(mask_indices[m], s),
-            G,
-            mask_indices[m]
+          sum_stats.mask_controls_het(m, s) = stat::misc::estimate_nhets(
+            sum_stats.controls_het(sum_stats.mask_indices[m], s),
+            sum_stats.aafs(sum_stats.mask_indices[m], s),
+            Gsp_mask
           );
-          mask_controls_alt(m, s) = stat::misc::estimate_nalts(
-            controls_alt(mask_indices[m], s),
-            aafs(mask_indices[m], s),
-            G,
-            mask_indices[m]
+          sum_stats.mask_controls_alt(m, s) = stat::misc::estimate_nalts(
+            sum_stats.controls_alt(sum_stats.mask_indices[m], s),
+            sum_stats.aafs(sum_stats.mask_indices[m], s),
+            Gsp_mask
           );
         }
         if (this->trait_type == QT) {
-          mask_aafs(m, s) = max(
-            1.0 / (2.0*mask_ncases_per_study(m, s)),
-            (mask_cases_het(m, s) + 2*mask_cases_alt(m, s)) / (2.0*mask_ncases_per_study(m, s))
+          sum_stats.mask_aafs(m, s) = max(
+            1.0 / (2.0*sum_stats.mask_ncases_per_study(m, s)),
+            (sum_stats.mask_cases_het(m, s) + 2*sum_stats.mask_cases_alt(m, s)) / (2.0*sum_stats.mask_ncases_per_study(m, s))
           );
         } else {
-          mask_aafs(m, s) = max(
-            1.0 / (2.0*mask_ncases_per_study(m, s) + 2.0*mask_ncontrols_per_study(m, s)),
-            (mask_cases_het(m, s) + mask_controls_het(m, s) + 2*mask_cases_alt(m, s) + 2*mask_controls_alt(m, s))
-              / (2.0*mask_ncases_per_study(m, s) + 2.0*mask_ncontrols_per_study(m, s))
+          sum_stats.mask_aafs(m, s) = max(
+            1.0 / (2.0*sum_stats.mask_ncases_per_study(m, s) + 2.0*sum_stats.mask_ncontrols_per_study(m, s)),
+            (sum_stats.mask_cases_het(m, s) + sum_stats.mask_controls_het(m, s) + 2*sum_stats.mask_cases_alt(m, s) + 2*sum_stats.mask_controls_alt(m, s))
+              / (2.0*sum_stats.mask_ncases_per_study(m, s) + 2.0*sum_stats.mask_ncontrols_per_study(m, s))
           );
         }
       }
@@ -761,110 +797,100 @@ vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
 #endif
     }
 
-    if (!found_at_least_one_conditional_variant) {
+    if (!sum_stats.found_at_least_one_conditional_variant) {
       log_debug("rescaling matrices");
-      stat::misc::rescale_cov(G, scorev.col(s));
+      stat::misc::rescale_cov(Gsp, G_diag, sum_stats.scorev.col(s));
     } else {
       log_debug("rescaling matrices");
       stat::misc::rescale_cov_block(
-        G,
+        Gsp,
         C,
         G_C,
-        scorev.col(s).array(),
-        gene_cond_scorev.col(s).array()
+        G_diag,
+        sum_stats.scorev.col(s).array(),
+        sum_stats.gene_cond_scorev.col(s).array()
       );
     }
 
-    gene_ld_mat += G.sparseView();
-    if (found_at_least_one_conditional_variant) {
-      gene_buffer_ld_mat += G_C.sparseView();
-      buffer_ld_mat += C.sparseView();
+    if (this->collapse_anno && collapse_anno_found) {
+      stat::misc::collapse_anno(Gsp, sum_stats.scores.col(s), sum_stats.scorev.col(s), sum_stats.ses.col(s), sum_stats.collapse_anno_indicators);
+      G_diag = Gsp.diagonal();
     }
 
-    if (this->burden_params.params_set()) {
+    sum_stats.gene_ld_mat += Gsp;
+    if (sum_stats.found_at_least_one_conditional_variant) {
+      sum_stats.gene_buffer_ld_mat += G_C;
+      sum_stats.buffer_ld_mat += C;
+    }
+
+    if (this->burden_params.params_set() || sum_stats.found_at_least_one_conditional_variant) {
       log_debug("computing effect sizes");
-      VectorXd study_scores = scores.col(s);
+      VectorXd study_scores = sum_stats.scores.col(s);
 
-      // VectorXd beta_cov;
-      // if (found_at_least_one_conditional_variant) {
-      //   Eigen::LDLT<MatrixXd> C_dcmp = C.ldlt();
-      //   G = G - G_C * C_dcmp.solve(G_C.transpose());
-      //   study_scores = study_scores - G_C * C_dcmp.solve(gene_cond_scores.col(s));
-
-      //   MatrixXd D = (ses.col(s).array() > 0).select(
-      //     ses.col(s).array() / scorev.col(s).array().sqrt(),
-      //     VectorXd::Ones(ses.rows())
-      //   ).matrix().asDiagonal();
-      //   beta_cov = (D * G * D).diagonal();
-      // } else {
-      //   beta_cov = ses.col(s).array().square();
-      // }
-      // VectorXd beta_weights = (beta_cov.array() > 0).select(
-      //   beta_cov.array().inverse(),
-      //   0
-      // );
-
+      G_diag = Gsp.diagonal();
       SpMat beta_cov;
-      if (found_at_least_one_conditional_variant) {
+      if (sum_stats.found_at_least_one_conditional_variant) {
         Eigen::LDLT<MatrixXd> C_dcmp = C.ldlt();
-        G = G - G_C * C_dcmp.solve(G_C.transpose());
-        study_scores = study_scores - G_C * C_dcmp.solve(gene_cond_scores.col(s));
+        Gsp = Gsp - G_C * C_dcmp.solve(G_C.transpose());
+        study_scores = study_scores - G_C * C_dcmp.solve(sum_stats.gene_cond_scores.col(s));
       }
-      VectorXd D = (ses.col(s).array() > 0).select(
-        ses.col(s).array() / G.diagonal().array().sqrt(),
-        VectorXd::Ones(ses.rows())
+      VectorXd D = (G_diag.array() > 0).select(
+        sum_stats.ses.col(s).array() / G_diag.array().sqrt(),
+        VectorXd::Zero(sum_stats.ses.rows())
       ).matrix();
-      beta_cov = D.asDiagonal() * G.sparseView() * D.asDiagonal();
+      beta_cov = D.asDiagonal() * Gsp * D.asDiagonal();
       VectorXd beta_weights = (beta_cov.diagonal().array() > 0).select(
         beta_cov.diagonal().array().inverse(),
         0
       );
 
-      for (int m = 0; m < nmasks; ++m) {
-        double burden_score = masks.row(m) * study_scores;
+      for (int m = 0; m < sum_stats.nmasks; ++m) {
+        double burden_score = sum_stats.masks.row(m) * study_scores;
         if (burden_score == 0) continue;
-        double burden_score_std = sqrt(G(mask_indices[m], mask_indices[m]).sum());
+        //SpMat Gsp_mask = mask_selectors[m] * Gsp * mask_selectors[m].transpose();
+
+        double burden_score_std = sqrt((sum_stats.masks.row(m) * Gsp * sum_stats.masks.row(m).transpose()).sum());
         double burden_chi = pow(burden_score / burden_score_std, 2);
         double cf = 1.0;
-        double case_control_ratio = (double)mask_ncases[m] / (double)mask_ncontrols[m];
+        double case_control_ratio = (double)sum_stats.mask_ncases[m] / (double)sum_stats.mask_ncontrols[m];
         if (this->trait_type == BT
             && case_control_ratio < this->burden_params.mask_spa_case_control_ratio
             && -abs(burden_score) / burden_score_std < this->burden_params.mask_spa_z_score) {
 
-          double nhet = mask_cases_het(m, s) + mask_controls_het(m, s);
-          double nhom_alt = mask_cases_alt(m, s) + mask_controls_alt(m, s);
-          double nhom_ref = max(0.0, mask_ncases_per_study(m ,s) + mask_ncontrols_per_study(m ,s) - nhet - nhom_alt);
+          double nhet = sum_stats.mask_cases_het(m, s) + sum_stats.mask_controls_het(m, s);
+          double nhom_alt = sum_stats.mask_cases_alt(m, s) + sum_stats.mask_controls_alt(m, s);
+          double nhom_ref = max(0.0, sum_stats.mask_ncases_per_study(m ,s) + sum_stats.mask_ncontrols_per_study(m ,s) - nhet - nhom_alt);
           double spa_chi = stat::spa::compute_spa_chival_from_geno_counts(burden_score,
                                                                           burden_score_std,
                                                                           nhom_ref,
                                                                           nhet,
                                                                           nhom_alt,
-                                                                          mask_ncases_per_study(m ,s),
-                                                                          mask_ncontrols_per_study(m ,s),
+                                                                          sum_stats.mask_ncases_per_study(m ,s),
+                                                                          sum_stats.mask_ncontrols_per_study(m ,s),
                                                                           false);
           if (spa_chi != stat::spa::SPA_FAILED) {
             cf = max(1.0, burden_chi / spa_chi);
           }
         }
 
-        double weight_sum = (masks.row(m) * beta_weights).value();
+        double weight_sum = (sum_stats.masks.row(m) * beta_weights).value();
         double beta_var = (
-          (masks.row(m).array()*beta_weights.transpose().array()).matrix()/weight_sum 
+          (sum_stats.masks.row(m).array()*beta_weights.transpose().array()).matrix()/weight_sum 
           * beta_cov
-          * (masks.row(m).transpose().array()*beta_weights.array()).matrix()/weight_sum
+          * (sum_stats.masks.row(m).transpose().array()*beta_weights.array()).matrix()/weight_sum
         ).value();
         double mask_se = sqrt( beta_var );
-        mask_betas(m, s) = mask_se * burden_score / burden_score_std;
+        sum_stats.mask_betas(m, s) = mask_se * burden_score / burden_score_std;
 
         stat::tests::test_result_t burden_pval = stat::tests::wst_burden(
-          burden_score*burden_score, cf*G(mask_indices[m], mask_indices[m])
+          burden_score*burden_score, cf*burden_score_std*burden_score_std
         );
         if (burden_pval == stat::tests::TEST_FAILED) {
           log_warning("burden test failed for " + g.get_name() + "." + mask_set.get_mask_alt(m) + " in study " + to_string(s+1));
           continue;
         }
-        double se = stat::misc::get_se_from_beta_pval(mask_betas(m, s), burden_pval.pval);
-        mask_ses(m, s) = se;
+        double se = stat::misc::get_se_from_beta_log10p(sum_stats.mask_betas(m, s), burden_pval.log10p);
+        sum_stats.mask_ses(m, s) = se;
 
         if (this->write_cohort_burden_tests) {
           string bin_name = mask_set.get_mask_alt(m);
@@ -892,31 +918,31 @@ vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
             HTPv4_NA,
             map<string, string>()
           };
-          result.num_cases = mask_ncases_per_study(m, s);
-          result.cases_het = mask_cases_het(m, s);
-          result.cases_alt = mask_cases_alt(m, s);
-          result.cases_ref = max(0.0, mask_ncases_per_study(m, s) - result.cases_het - result.cases_alt);
+          result.num_cases = sum_stats.mask_ncases_per_study(m, s);
+          result.cases_het = sum_stats.mask_cases_het(m, s);
+          result.cases_alt = sum_stats.mask_cases_alt(m, s);
+          result.cases_ref = max(0.0, sum_stats.mask_ncases_per_study(m, s) - result.cases_het - result.cases_alt);
           if (this->trait_type == BT) {
-            result.num_controls = mask_ncontrols_per_study(m, s);
-            result.controls_het = mask_controls_het(m, s);
-            result.controls_alt = mask_controls_alt(m, s);
-            result.controls_ref = max(0.0, mask_ncontrols_per_study(m, s) - result.controls_het - result.controls_alt);
+            result.num_controls = sum_stats.mask_ncontrols_per_study(m, s);
+            result.controls_het = sum_stats.mask_controls_het(m, s);
+            result.controls_alt = sum_stats.mask_controls_alt(m, s);
+            result.controls_ref = max(0.0, sum_stats.mask_ncontrols_per_study(m, s) - result.controls_het - result.controls_alt);
           }
-          result.aaf = mask_aafs(m, s);
+          result.aaf = sum_stats.mask_aafs(m, s);
           result.info[HTPv4_ESTIMATED_GENOTYPE_COUNTS_FLAG] = "";
 
           result.pval = burden_pval.pval;
           result.info["LOG10P"] = to_string(-burden_pval.log10p);
 
           if (this->trait_type == QT) {
-            result.effect = mask_betas(m, s);
-            result.lci_effect = mask_betas(m, s) - 1.96 * mask_ses(m, s);
-            result.uci_effect = mask_betas(m, s) + 1.96 * mask_ses(m, s);
+            result.effect = sum_stats.mask_betas(m, s);
+            result.lci_effect = sum_stats.mask_betas(m, s) - 1.96 * sum_stats.mask_ses(m, s);
+            result.uci_effect = sum_stats.mask_betas(m, s) + 1.96 * sum_stats.mask_ses(m, s);
           } else {
-            result.effect = exp(mask_betas(m, s));
-            result.lci_effect = exp(mask_betas(m, s) - 1.96 * mask_ses(m, s));
-            result.uci_effect = exp(mask_betas(m, s) + 1.96 * mask_ses(m, s));
-            result.info["BETA"] = to_string(mask_betas(m, s));
+            result.effect = exp(sum_stats.mask_betas(m, s));
+            result.lci_effect = exp(sum_stats.mask_betas(m, s) - 1.96 * sum_stats.mask_ses(m, s));
+            result.uci_effect = exp(sum_stats.mask_betas(m, s) + 1.96 * sum_stats.mask_ses(m, s));
+            result.info["BETA"] = to_string(sum_stats.mask_betas(m, s));
           }
           result.info["SE"] = to_string(se);
           this->burden_writer->writerec(result);
@@ -925,439 +951,380 @@ vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
     }
   }
   d = std::chrono::steady_clock::now() - start;
-  log_debug("loading ld matrices: " + to_string(d.count()) + " seconds");
+  log_debug(" * loading ld matrices: " + to_string(d.count()) + " seconds");
 
-  if (this->ld_mat_required() && !found_at_least_one_ld_mat) {
-    log_warning("no study contains an LD matrix for " + g.get_name() + ", skipping...");
-    return vector<htpv4_record_t>();
+  for (int m = 0; m < sum_stats.nmasks; ++m) {
+    double mask_aac = 0;
+    double mask_an = 0;
+    for (int s = 0; s < nstudies; ++s) {
+      mask_aac += sum_stats.mask_cases_het(m, s) + 2*sum_stats.mask_cases_alt(m, s);
+      mask_an += 2*sum_stats.mask_ncases_per_study(m, s);
+
+      if (this->trait_type == BT) {
+        mask_aac += sum_stats.mask_controls_het(m, s) + 2*sum_stats.mask_controls_alt(m, s);
+        mask_an += 2*sum_stats.mask_ncontrols_per_study(m, s);
+      }
+    }
+    sum_stats.mask_aaf[m] = mask_aac / mask_an;
+
+    sum_stats.mask_nhet[m] = sum_stats.mask_cases_het.row(m).sum() + sum_stats.mask_controls_het.row(m).sum();
+    sum_stats.mask_nhom_alt[m] = sum_stats.mask_cases_alt.row(m).sum() + sum_stats.mask_controls_alt.row(m).sum();
+    sum_stats.mask_nhom_ref[m] = max(0.0, sum_stats.mask_ncases[m] + sum_stats.mask_ncontrols[m] - sum_stats.mask_nhet[m] - sum_stats.mask_nhom_alt[m]);
+    sum_stats.mask_case_control_ratio[m] = (double)sum_stats.mask_ncases[m] / (double)sum_stats.mask_ncontrols[m];
   }
 
-  VectorXd scores_sum = scores.rowwise().sum();
-  VectorXd scorev_sum = scorev.rowwise().sum();
-  string conditional_variant_info = "";
-  if (found_at_least_one_conditional_variant) {
+  sum_stats.scores_sum = sum_stats.scores.rowwise().sum();
+  sum_stats.scorev_sum = sum_stats.scorev.rowwise().sum();
+
+  return sum_stats;
+}
+
+void HTPMetaAnalyzer::write_snplist(const GeneSumStats& sum_stats, const Gene& g) {
+  log_debug("writing mask snplist");
+  for (int m = 0; m < sum_stats.nmasks; ++m) {
+    if (sum_stats.mask_variants[m].size() == 0) continue;
+
+    this->snplist_writer->write(g.get_name() + "." + mask_set.get_mask_alt(m) + "\t");
+    for (size_t j = 0; j < sum_stats.mask_variants[m].size() - 1; ++j) {
+      this->snplist_writer->write(sum_stats.mask_variants[m][j] + ",");
+    }
+    if (sum_stats.mask_variants[m].size() > 0) {
+      this->snplist_writer->write(sum_stats.mask_variants[m][sum_stats.mask_variants[m].size() - 1] + "\n");
+    }
+  }
+}
+
+void HTPMetaAnalyzer::compute_conditional_variant_stats(GeneSumStats& sum_stats) {
+  sum_stats.conditional_variant_info = "";
+  if (sum_stats.found_at_least_one_conditional_variant) {
     log_debug("computing conditional statistics");
 
-    Eigen::LDLT<MatrixXd> buffer_ld_mat_dcmp = MatrixXd(buffer_ld_mat).ldlt();
-    MatrixXd gene_buffer_ld_mat_dense = MatrixXd(gene_buffer_ld_mat);
-    VectorXd cond_scores_sum = gene_cond_scores.rowwise().sum();
+    Eigen::LDLT<MatrixXd> buffer_ld_mat_dcmp = MatrixXd(sum_stats.buffer_ld_mat).ldlt();
+    MatrixXd gene_buffer_ld_mat_dense = MatrixXd(sum_stats.gene_buffer_ld_mat);
+    VectorXd cond_scores_sum = sum_stats.gene_cond_scores.rowwise().sum();
 
-    scores_sum = scores_sum - gene_buffer_ld_mat_dense * buffer_ld_mat_dcmp.solve(cond_scores_sum);
-    gene_ld_mat = gene_ld_mat - gene_buffer_ld_mat_dense * buffer_ld_mat_dcmp.solve(gene_buffer_ld_mat_dense.transpose());
-    scorev_sum = MatrixXd(gene_ld_mat).diagonal();
+    sum_stats.scores_sum = sum_stats.scores_sum - gene_buffer_ld_mat_dense * buffer_ld_mat_dcmp.solve(cond_scores_sum);
+    sum_stats.gene_ld_mat = sum_stats.gene_ld_mat - gene_buffer_ld_mat_dense * buffer_ld_mat_dcmp.solve(gene_buffer_ld_mat_dense.transpose());
+    sum_stats.scorev_sum = MatrixXd(sum_stats.gene_ld_mat).diagonal();
 
-    for ( const variant_id& vid : gene_conditional_variants ) {
-      if (conditional_variant_info.size() > 0) {
-        conditional_variant_info += "," + vid; 
+    for ( const variant_id& vid : sum_stats.gene_conditional_variants ) {
+      if (sum_stats.conditional_variant_info.size() > 0) {
+        sum_stats.conditional_variant_info += "," + vid; 
       } else {
-        conditional_variant_info = vid;
+        sum_stats.conditional_variant_info = vid;
       }
     }
   }
+}
 
-  VectorXd variant_cf_sqrt = VectorXd::Ones(variants_found.size());
-  VectorXd variant_z_scores = VectorXd::Zero(variants_found.size());
-  if (this->sv_spa_z_score != SPA_NEVER_APPLIED && max_ccr < this->sv_spa_case_control_ratio) {
+void HTPMetaAnalyzer::compute_variant_spa(GeneSumStats& sum_stats) {
+  sum_stats.variant_cf_sqrt = VectorXd::Ones(sum_stats.nvariants);
+  sum_stats.variant_z_scores = VectorXd::Zero(sum_stats.nvariants);
+  if (this->sv_spa_z_score != SPA_NEVER_APPLIED && sum_stats.max_ccr < this->sv_spa_case_control_ratio) {
     log_debug("applying per variant spa");
     double z;
     double spa_chi;
     double cf;
-    for (size_t j = 0; j < variants_found.size(); ++j) {
-      z = -abs(scores_sum(j) / sqrt(scorev_sum(j)));
-      variant_z_scores(j) = z;
+    for (int j = 0; j < sum_stats.nvariants; ++j) {
+      z = -abs(sum_stats.scores_sum(j) / sqrt(sum_stats.scorev_sum(j)));
+      sum_stats.variant_z_scores(j) = z;
       if (z < this->sv_spa_z_score) {
-        // spa_chi = stat::spa::compute_spa_chival_from_gc_per_study(
-        //   scores.row(j),
-        //   scorev.row(j).array().sqrt(),
-        //   ncontrols.row(j) + ncases.row(j) - (controls_het.row(j) + controls_alt.row(j) + cases_het.row(j) + cases_alt.row(j)),
-        //   controls_het.row(j) + cases_het.row(j),
-        //   controls_alt.row(j) + cases_alt.row(j),
-        //   ncases.row(j),
-        //   ncontrols.row(j),
-        //   false
-        // );
         spa_chi = stat::spa::compute_spa_chival_from_geno_counts(
-          scores_sum(j),
-          sqrt(scorev_sum(j)),
-          (ncontrols.row(j) + ncases.row(j) - (controls_het.row(j) + controls_alt.row(j) + cases_het.row(j) + cases_alt.row(j))).sum(),
-          (controls_het.row(j) + cases_het.row(j)).sum(),
-          (controls_alt.row(j) + cases_alt.row(j)).sum(),
-          (ncases.row(j)).sum(),
-          (ncontrols.row(j)).sum(),
+          sum_stats.scores_sum(j),
+          sqrt(sum_stats.scorev_sum(j)),
+          (sum_stats.ncontrols.row(j) + sum_stats.ncases.row(j) - (sum_stats.controls_het.row(j) + sum_stats.controls_alt.row(j) + sum_stats.cases_het.row(j) + sum_stats.cases_alt.row(j))).sum(),
+          (sum_stats.controls_het.row(j) + sum_stats.cases_het.row(j)).sum(),
+          (sum_stats.controls_alt.row(j) + sum_stats.cases_alt.row(j)).sum(),
+          (sum_stats.ncases.row(j)).sum(),
+          (sum_stats.ncontrols.row(j)).sum(),
           false
         );
         cf = max(1.0, z*z / spa_chi);
         if (spa_chi != stat::spa::SPA_FAILED && cf > 1) {
-          variant_cf_sqrt(j) = sqrt(cf);
+          sum_stats.variant_cf_sqrt(j) = sqrt(cf);
         }
       }
     }
   }
+}
 
-  log_debug("computing test statistics");
-  start = std::chrono::steady_clock::now();
-  VectorXd burden_scores = scores_sum.array() * burden_weights.array();
-  VectorXd Qburden = (masks * burden_scores).array().square().matrix();
-  VectorXd skato_scores =  scores_sum.array() * skato_weights.array();
-  VectorXd Qskato_burden = (masks * skato_scores).array().square().matrix();
-  VectorXd Qskato_skat = masks * skato_scores.array().square().matrix();
-  vector<htpv4_record_t> burden_results;
-  vector<htpv4_record_t> skato_results;
-  vector<htpv4_record_t> acatv_results;
-  for (int i = 0; i < nmasks; ++i) {
-    string mask_cohort_meta = util::format_cohort_meta(this->cohorts, vector<int>(mask_cohort_idx[i].begin(), mask_cohort_idx[i].end()));
-    string bin_name = mask_set.get_mask_alt(i);
+void HTPMetaAnalyzer::compute_burden(vector<htpv4_record_t>& burden_results,
+                                     GeneSumStats& sum_stats, // modifies mask_cf
+                                     const SpMat& ld_mat_meta,
+                                     const htpv4_record_t& result_template,
+                                     int mask_idx) {
+  log_debug("computing burden");
+  int m = mask_idx;
+  double Qburden = sum_stats.masks.row(m) * sum_stats.burden_scores;
+  Qburden *= Qburden;
 
-    htpv4_record_t result_template {
-      g.get_name() + "." + bin_name,
-      g.get_chrom(),
-      g.get_start(),
-      "ref",
-      bin_name,
-      this->trait_name,
-      mask_cohort_meta,
-      "",
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      HTPv4_NA,
-      map<string, string>()
-    };
-    result_template.info["MAX_MAC"] = to_string((int)masks_max_mac(i));
-    result_template.info["SOURCE"] = "REMETA-GB";
-
-    result_template.num_cases = mask_ncases[i];
-    if (this->trait_type == BT) {
-      result_template.num_controls = mask_ncontrols[i];
+  SpMat D(sum_stats.mask_indices[m].size(), sum_stats.mask_indices[m].size());
+  D.reserve(VectorXi::Constant(sum_stats.mask_indices[m].size(), 1));
+  for (size_t v = 0; v < sum_stats.mask_indices[m].size(); ++v) {
+    double c = 1;
+    if (sum_stats.variant_z_scores(sum_stats.mask_indices[m][v]) < this->burden_params.sv_spa_z_score
+        && sum_stats.max_ccr < this->burden_params.sv_spa_case_control_ratio) {
+      c *= sum_stats.variant_cf_sqrt(sum_stats.mask_indices[m][v]);
     }
+    D.insert(v, v) = c*sum_stats.burden_weights(sum_stats.mask_indices[m])[v];
+  }
+  SpMat burden_ld_mat = D * ld_mat_meta * D;
 
-    log_debug("running mask " + bin_name);
-    if (mask_indices[i].size() == 0) {
-      log_warning("mask " + g.get_name() + "." + bin_name + " does not have any variants");
+  VectorXd variant_cf_sqrt_mask = VectorXd::Ones(sum_stats.mask_indices[m].size());
+  if (sum_stats.max_ccr < this->burden_params.sv_spa_case_control_ratio) {
+    variant_cf_sqrt_mask = (sum_stats.variant_z_scores(sum_stats.mask_indices[m]).array() < this->burden_params.sv_spa_z_score).select(
+      sum_stats.variant_cf_sqrt(sum_stats.mask_indices[m]).array(),
+      1
+    );
+  }
+  double burden_score = sum_stats.masks.row(m) * sum_stats.scores_sum;
+  double burden_score_std = sqrt(
+    variant_cf_sqrt_mask.transpose() * ld_mat_meta * variant_cf_sqrt_mask
+  );
+  double burden_z_score = -abs(burden_score / burden_score_std);
+  double burden_chi = pow(burden_score / burden_score_std, 2);
+  double cf = 1.0;
+  if (this->trait_type == BT
+      && sum_stats.mask_case_control_ratio[m] < this->burden_params.mask_spa_case_control_ratio
+      && burden_z_score < this->burden_params.mask_spa_z_score) {
+    log_debug("computing burden mask correction factor");
+    double spa_chi = stat::spa::compute_spa_chival_from_geno_counts(burden_score,
+                                                                    burden_score_std,
+                                                                    sum_stats.mask_nhom_ref[m],
+                                                                    sum_stats.mask_nhet[m],
+                                                                    sum_stats.mask_nhom_alt[m],
+                                                                    sum_stats.mask_ncases[m],
+                                                                    sum_stats.mask_ncontrols[m],
+                                                                    false);
+    if (spa_chi != stat::spa::SPA_FAILED) {
+      cf = max(1.0, burden_chi / spa_chi);
+    }
+    burden_ld_mat = burden_ld_mat * cf;
+  }
+  sum_stats.mask_cf[m] = cf;
+
+  htpv4_record_t burden_result = result_template;
+  burden_result.model = "REMETA-BURDEN-META";
+  burden_result.cases_het = sum_stats.mask_cases_het.row(m).sum();
+  burden_result.cases_alt = sum_stats.mask_cases_alt.row(m).sum();
+  burden_result.cases_ref = max(0.0, sum_stats.mask_ncases[m] - burden_result.cases_het - burden_result.cases_alt);
+  if (this->trait_type == BT) {
+    burden_result.controls_het = sum_stats.mask_controls_het.row(m).sum();
+    burden_result.controls_alt = sum_stats.mask_controls_alt.row(m).sum();
+    burden_result.controls_ref = max(0.0, sum_stats.mask_ncontrols[m] - burden_result.controls_het - burden_result.controls_alt);
+  }
+
+  burden_result.aaf = sum_stats.mask_aaf[m];
+  burden_result.info["Direction"] = "";
+  burden_result.info[HTPv4_ESTIMATED_GENOTYPE_COUNTS_FLAG] = "";
+  for (int k = 0; k < this->nstudies; ++k) {
+    if (sum_stats.mask_betas(m, k) > 0) {
+      burden_result.info["Direction"] += "+";
+    } else if (sum_stats.mask_betas(m, k) < 0) {
+      burden_result.info["Direction"] += "-";
+    } else {
+      burden_result.info["Direction"] += "?";
+    }
+  }
+  pair<double, double> effects = stat::misc::meta_analyze_effects(
+    sum_stats.mask_betas.row(m),
+    sum_stats.mask_ses.row(m)
+  );
+  stat::tests::test_result_t burden_pval = stat::tests::wst_burden(Qburden, burden_ld_mat.sum());
+  burden_result.pval = burden_pval.pval;
+  sum_stats.mask_pval[m] = burden_pval.pval;
+  double se = stat::misc::get_se_from_beta_log10p(effects.first, burden_pval.log10p);
+  burden_result.info["LOG10P"] = to_string(-burden_pval.log10p);
+  burden_result.info["CF"] = to_string(cf);
+
+  if (this->trait_type == QT) {
+    burden_result.effect = effects.first;
+    burden_result.lci_effect = effects.first - 1.96 * se;
+    burden_result.uci_effect = effects.first + 1.96 * se;
+  } else {
+    burden_result.effect = exp(effects.first);
+    burden_result.lci_effect = exp(effects.first - 1.96 * se);
+    burden_result.uci_effect = exp(effects.first + 1.96 * se);
+    burden_result.info["BETA"] = to_string(effects.first);
+  }
+  burden_result.info["SE"] = to_string(se);
+  burden_result.info["NVAR"] = to_string(sum_stats.mask_indices[m].size());
+
+  if (sum_stats.conditional_variant_info != "") {
+    burden_result.info["CONDITIONAL"] = sum_stats.conditional_variant_info;
+  }
+  if (burden_pval == stat::tests::TEST_FAILED) {
+    log_warning("burden test failed for " + burden_result.name);
+  } else {
+    burden_results.push_back(burden_result);
+  }
+}
+
+void HTPMetaAnalyzer::compute_skato(vector<htpv4_record_t>& skato_results,
+                                    const GeneSumStats& sum_stats,
+                                    const SpMat& ld_mat_meta,
+                                    const htpv4_record_t& result_template,
+                                    int mask_idx) {
+  log_debug("computing SKATO");
+  int m = mask_idx;
+
+  SpMat D(sum_stats.mask_indices[m].size(), sum_stats.mask_indices[m].size());
+  D.reserve(VectorXi::Constant(sum_stats.mask_indices[m].size(), 1));
+  for (size_t v = 0; v < sum_stats.mask_indices[m].size(); ++v) {
+    double c = 1;
+    if (sum_stats.variant_z_scores(sum_stats.mask_indices[m][v]) < this->skato_params.sv_spa_z_score
+        && sum_stats.max_ccr < this->skato_params.sv_spa_case_control_ratio) {
+      c *= sum_stats.variant_cf_sqrt(sum_stats.mask_indices[m][v]);
+    }
+    D.insert(v, v) = c*sum_stats.skato_weights(sum_stats.mask_indices[m])[v];
+  }
+  //D.makeCompressed();
+  MatrixXd skato_ld_mat = sum_stats.mask_collapsors[m] * D * ld_mat_meta * D * sum_stats.mask_collapsors[m].transpose();
+
+  VectorXd variant_cf_sqrt_mask = VectorXd::Ones(sum_stats.mask_indices[m].size());
+  if (sum_stats.max_ccr < this->skato_params.sv_spa_case_control_ratio) {
+    variant_cf_sqrt_mask = (sum_stats.variant_z_scores(sum_stats.mask_indices[m]).array() < this->skato_params.sv_spa_z_score).select(
+      sum_stats.variant_cf_sqrt(sum_stats.mask_indices[m]).array(),
+      1
+    );
+  }
+  double burden_score = sum_stats.masks.row(m) * sum_stats.scores_sum;
+  double burden_score_std = sqrt(
+    variant_cf_sqrt_mask.transpose() * ld_mat_meta * variant_cf_sqrt_mask
+  );
+  double burden_z_score = -abs(burden_score / burden_score_std);
+  double burden_chi = pow(burden_score / burden_score_std, 2);
+  double cf = 1.0;
+  if (this->trait_type == BT
+      && sum_stats.mask_case_control_ratio[m] < this->skato_params.mask_spa_case_control_ratio
+      && burden_z_score < this->skato_params.mask_spa_z_score) {
+    log_debug("computing SKATO mask correction factor");
+    double spa_chi = stat::spa::compute_spa_chival_from_geno_counts(burden_score,
+                                                                    burden_score_std,
+                                                                    sum_stats.mask_nhom_ref[m],
+                                                                    sum_stats.mask_nhet[m],
+                                                                    sum_stats.mask_nhom_alt[m],
+                                                                    sum_stats.mask_ncases[m],
+                                                                    sum_stats.mask_ncontrols[m],
+                                                                    false);
+    if (spa_chi != stat::spa::SPA_FAILED) {
+      cf = max(1.0, burden_chi / spa_chi);
+    }
+    skato_ld_mat = skato_ld_mat * cf;
+  }
+
+  htpv4_record_t skat_result = result_template;
+  skat_result.model = "REMETA-SKAT-META";
+  htpv4_record_t skato_result = result_template;
+  skato_result.model = "REMETA-SKATO-ACAT-META";
+
+  vector<double> log10_pvals;
+  double Qskat = (sum_stats.mask_collapsors[m] * sum_stats.mask_selectors[m] * sum_stats.skato_scores).array().square().sum();
+  double Qburden = (sum_stats.mask_selectors[m] * sum_stats.skato_scores).array().sum();
+  Qburden *= Qburden;
+  for (const double& rho : this->skato_params.rho_values) {
+    stat::tests::test_result_t test_result = stat::tests::skato(
+      Qskat,
+      Qburden,
+      rho,
+      skato_ld_mat
+    );
+    if (test_result == stat::tests::TEST_FAILED) {
       continue;
     }
 
-    SpMat ld_mat_meta;
-    log_debug("building meta ld matrix of size " + to_string(mask_indices[i].size()));
-    vector<Triplet> triplet_list(mask_indices[i].size());
-    for (size_t k = 0; k < mask_indices[i].size(); ++k) {
-      triplet_list.push_back(Triplet(k, mask_indices[i][k], 1));
+    log10_pvals.push_back(test_result.log10p);
+    if (rho == 0) {
+      skat_result.pval = test_result.pval;
+      skat_result.info["LOG10P"] = to_string(-test_result.log10p);
+      skat_result.info["CF"] = to_string(cf);
     }
-    SpMat selector(mask_indices[i].size(), variants_found.size());
-    selector.setFromTriplets(triplet_list.begin(), triplet_list.end());
-    ld_mat_meta = selector * gene_ld_mat * selector.transpose();
-    if ((ld_mat_meta.diagonal().array() == 0).all()) {
-      // likely including imputed variants in mask, or as mismatch between variants in the LD matrix
-      // and variants in the summary statistics file
-      log_warning("found zero LD matrix for " + g.get_name() + "." + bin_name + ", skipping...");
-      continue;
+  }
+
+  int nvar = 0;
+  for (ssize_t v = 0; v < skato_ld_mat.rows(); ++v) {
+    if (skato_ld_mat(v, v) > 0) {
+      ++nvar;
     }
+  }
+  skato_result.info["NVAR"] = to_string(nvar);
 
-    log_debug("computing burden aaf");
-    double mask_aac = 0;
-    double mask_an = 0;
-    double mask_aaf = 0;
-    for (int s = 0; s < nstudies; ++s) {
-      mask_aac += mask_cases_het(i, s) + 2*mask_cases_alt(i, s);
-      mask_an += 2*mask_ncases_per_study(i, s);
+  stat::tests::test_result_t skato_acat = stat::tests::acat(log10_pvals);
+  skato_result.pval = skato_acat.pval;
+  skato_result.info["LOG10P"] = to_string(-skato_acat.log10p);
+  skato_result.info["CF"] = to_string(cf);
+  if (sum_stats.conditional_variant_info != "") {
+    skato_result.info["CONDITIONAL"] = sum_stats.conditional_variant_info;
+  }
+  if (skato_acat == stat::tests::TEST_FAILED || log10_pvals.size() == 0) {
+    log_warning("SKATO test failed for " + skato_result.name);
+  } else {
+    skato_results.push_back(skato_result);
+  }
 
-      if (this->trait_type == BT) {
-        mask_aac += mask_controls_het(i, s) + 2*mask_controls_alt(i, s);
-        mask_an += 2*mask_ncontrols_per_study(i, s);
-      }
+  if (skat_result.pval == HTPv4_NA) {
+    stat::tests::test_result_t test_result = stat::tests::skato(Qskat, Qburden, 0, ld_mat_meta);
+    skat_result.pval = test_result.pval;
+    skat_result.info["LOG10P"] = to_string(-test_result.log10p);
+    skat_result.info["CF"] = to_string(cf);
+  }
+
+  if (sum_stats.conditional_variant_info != "") {
+    skat_result.info["CONDITIONAL"] = sum_stats.conditional_variant_info;
+  }
+  if (skat_result.pval < 0) {
+    log_warning("SKAT test failed for " + skat_result.name);
+  } else {
+    skato_results.push_back(skat_result);
+  }
+}
+
+void HTPMetaAnalyzer::compute_acatv(vector<htpv4_record_t>& acatv_results,
+                                    const GeneSumStats& sum_stats,
+                                    const htpv4_record_t& result_template,
+                                    int mask_idx) {
+  log_debug("computing ACATV");
+  htpv4_record_t acatv_result = result_template;
+  acatv_result.model = "REMETA-ACATV-META";
+
+  vector<double> mask_log10_pvals;
+  vector<double> mask_weights;
+  int nvar = 0;
+  double z = 0;
+
+  VectorXd Qacatv = sum_stats.masks.row(mask_idx).transpose().array() * sum_stats.scores_sum.array();
+  VectorXd weights = sum_stats.masks.row(mask_idx).transpose().array() * sum_stats.acatv_weights.array();
+
+  for (ssize_t v = 0; v < Qacatv.size(); ++v) {
+    double c = 1;
+    if (sum_stats.variant_z_scores(v) < this->acatv_params.sv_spa_z_score
+        && sum_stats.mask_case_control_ratio(mask_idx) < this->acatv_params.sv_spa_case_control_ratio) {
+      c *= sum_stats.variant_cf_sqrt(v);
     }
-    mask_aaf = mask_aac / mask_an;
-
-    // this has to happen before the LD matrix is reweighted
-    log_debug("computing correction factor");
-    double nhet = mask_cases_het.row(i).sum() + mask_controls_het.row(i).sum();
-    double nhom_alt = mask_cases_alt.row(i).sum() + mask_controls_alt.row(i).sum();
-    double nhom_ref = max(0.0, mask_ncases[i] + mask_ncontrols[i] - nhet - nhom_alt);
-    double case_control_ratio = (double)mask_ncases[i] / (double)mask_ncontrols[i];
-
-    log_debug("computing p-values");
-    if (vector_contains(this->burden_params.af_bins, this->mask_set.get_mask_bin(i))) {
-      log_debug("computing burden");
-      if (Qburden[i] == 0) {
-        continue;
-      }
-
-      SpMat D(mask_indices[i].size(), mask_indices[i].size());
-      D.reserve(VectorXi::Constant(mask_indices[i].size(), 1));
-      for (size_t v = 0; v < mask_indices[i].size(); ++v) {
-        double c = 1;
-        if (variant_z_scores(mask_indices[i][v]) < this->burden_params.sv_spa_z_score
-            && max_ccr < this->burden_params.sv_spa_case_control_ratio) {
-          c *= variant_cf_sqrt(mask_indices[i][v]);
-        }
-        D.insert(v, v) = c*burden_weights(mask_indices[i])[v];
-      }
-      MatrixXd burden_ld_mat = D * ld_mat_meta * D;
-
-      VectorXd variant_cf_sqrt_mask = VectorXd::Ones(mask_indices[i].size());
-      if (max_ccr < this->burden_params.sv_spa_case_control_ratio) {
-        variant_cf_sqrt_mask = (variant_z_scores(mask_indices[i]).array() < this->burden_params.sv_spa_z_score).select(
-          variant_cf_sqrt(mask_indices[i]).array(),
-          1
-        );
-      }
-      double burden_score = masks.row(i) * scores_sum;
-      double burden_score_std = sqrt(
-        variant_cf_sqrt_mask.transpose() * ld_mat_meta * variant_cf_sqrt_mask
+    if (weights[v] > 0 && sum_stats.scorev_sum(v) > 0) {
+      z = -abs(Qacatv[v]) / (c*sqrt(sum_stats.scorev_sum(v)));
+      mask_weights.push_back(weights[v]);
+      mask_log10_pvals.push_back(
+        min(
+          log10(0.99),
+          stat::tests::normal(z, true).log10p
+        )
       );
-      double burden_z_score = -abs(burden_score / burden_score_std);
-      double burden_chi = pow(burden_score / burden_score_std, 2);
-      double cf = 1.0;
-      if (this->trait_type == BT
-          && case_control_ratio < this->burden_params.mask_spa_case_control_ratio
-          && burden_z_score < this->burden_params.mask_spa_z_score) {
-        log_debug("computing burden mask correction factor");
-        double spa_chi = stat::spa::compute_spa_chival_from_geno_counts(burden_score,
-                                                                        burden_score_std,
-                                                                        nhom_ref,
-                                                                        nhet,
-                                                                        nhom_alt,
-                                                                        mask_ncases[i],
-                                                                        mask_ncontrols[i],
-                                                                        false);
-        if (spa_chi != stat::spa::SPA_FAILED) {
-          cf = max(1.0, burden_chi / spa_chi);
-        }
-        burden_ld_mat = burden_ld_mat * cf;
-      }
-
-      htpv4_record_t burden_result = result_template;
-      burden_result.model = "REMETA-BURDEN-META";
-      burden_result.cases_het = mask_cases_het.row(i).sum();
-      burden_result.cases_alt = mask_cases_alt.row(i).sum();
-      burden_result.cases_ref = max(0.0, mask_ncases[i] - burden_result.cases_het - burden_result.cases_alt);
-      if (this->trait_type == BT) {
-        burden_result.controls_het = mask_controls_het.row(i).sum();
-        burden_result.controls_alt = mask_controls_alt.row(i).sum();
-        burden_result.controls_ref = max(0.0, mask_ncontrols[i] - burden_result.controls_het - burden_result.controls_alt);
-      }
-
-      burden_result.aaf = mask_aaf;
-      burden_result.info["Direction"] = "";
-      burden_result.info[HTPv4_ESTIMATED_GENOTYPE_COUNTS_FLAG] = "";
-      for (int k = 0; k < this->nstudies; ++k) {
-        if (mask_betas(i, k) > 0) {
-          burden_result.info["Direction"] += "+";
-        } else if (mask_betas(i, k) < 0) {
-          burden_result.info["Direction"] += "-";
-        } else {
-          burden_result.info["Direction"] += "?";
-        }
-      }
-      pair<double, double> effects = stat::misc::meta_analyze_effects(
-        mask_betas.row(i),
-        mask_ses.row(i)
-      );
-      stat::tests::test_result_t burden_pval = stat::tests::wst_burden(Qburden[i], burden_ld_mat);
-      burden_result.pval = burden_pval.pval;
-      double se = stat::misc::get_se_from_beta_pval(effects.first, burden_result.pval);
-      burden_result.info["LOG10P"] = to_string(-burden_pval.log10p);
-      burden_result.info["CF"] = to_string(cf);
-
-      if (this->trait_type == QT) {
-        burden_result.effect = effects.first;
-        burden_result.lci_effect = effects.first - 1.96 * se;
-        burden_result.uci_effect = effects.first + 1.96 * se;
-      } else {
-        burden_result.effect = exp(effects.first);
-        burden_result.lci_effect = exp(effects.first - 1.96 * se);
-        burden_result.uci_effect = exp(effects.first + 1.96 * se);
-        burden_result.info["BETA"] = to_string(effects.first);
-      }
-      burden_result.info["SE"] = to_string(se);
-      burden_result.info["NVAR"] = to_string(mask_indices[i].size());
-
-      if (conditional_variant_info != "") {
-        burden_result.info["CONDITIONAL"] = conditional_variant_info;
-      }
-      if (burden_pval == stat::tests::TEST_FAILED) {
-        log_warning("burden test failed for " + burden_result.name);
-      } else {
-        burden_results.push_back(burden_result);
-      }
-    }
-
-    if (vector_contains(this->skato_params.af_bins, this->mask_set.get_mask_bin(i))) {
-      log_debug("computing SKATO");
-
-      SpMat D(mask_indices[i].size(), mask_indices[i].size());
-      D.reserve(VectorXi::Constant(mask_indices[i].size(), 1));
-      for (size_t v = 0; v < mask_indices[i].size(); ++v) {
-        double c = 1;
-        if (variant_z_scores(mask_indices[i][v]) < this->skato_params.sv_spa_z_score
-            && max_ccr < this->skato_params.sv_spa_case_control_ratio) {
-          c *= variant_cf_sqrt(mask_indices[i][v]);
-        }
-        D.insert(v, v) = c*skato_weights(mask_indices[i])[v];
-      }
-      //D.makeCompressed();
-      MatrixXd skato_ld_mat = D * ld_mat_meta * D;
-
-      VectorXd variant_cf_sqrt_mask = VectorXd::Ones(mask_indices[i].size());
-      if (max_ccr < this->skato_params.sv_spa_case_control_ratio) {
-        variant_cf_sqrt_mask = (variant_z_scores(mask_indices[i]).array() < this->skato_params.sv_spa_z_score).select(
-          variant_cf_sqrt(mask_indices[i]).array(),
-          1
-        );
-      }
-      double burden_score = masks.row(i) * scores_sum;
-      double burden_score_std = sqrt(
-        variant_cf_sqrt_mask.transpose() * ld_mat_meta * variant_cf_sqrt_mask
-      );
-      double burden_z_score = -abs(burden_score / burden_score_std);
-      double burden_chi = pow(burden_score / burden_score_std, 2);
-      double cf = 1.0;
-      if (this->trait_type == BT
-          && case_control_ratio < this->skato_params.mask_spa_case_control_ratio
-          && burden_z_score < this->skato_params.mask_spa_z_score) {
-        log_debug("computing SKATO mask correction factor");
-        double spa_chi = stat::spa::compute_spa_chival_from_geno_counts(burden_score,
-                                                                        burden_score_std,
-                                                                        nhom_ref,
-                                                                        nhet,
-                                                                        nhom_alt,
-                                                                        mask_ncases[i],
-                                                                        mask_ncontrols[i],
-                                                                        false);
-        if (spa_chi != stat::spa::SPA_FAILED) {
-          cf = max(1.0, burden_chi / spa_chi);
-        }
-        skato_ld_mat = skato_ld_mat * cf;
-      }
-
-      htpv4_record_t skat_result = result_template;
-      skat_result.model = "REMETA-SKAT-META";
-      htpv4_record_t skato_result = result_template;
-      skato_result.model = "REMETA-SKATO-ACAT-META";
-
-      vector<double> log10_pvals;
-      for (const double& rho : this->skato_params.rho_values) {
-        stat::tests::test_result_t test_result = stat::tests::skato(
-          Qskato_skat[i],
-          Qskato_burden[i],
-          rho,
-          skato_ld_mat
-        );
-        if (test_result == stat::tests::TEST_FAILED) {
-          continue;
-        }
-
-        log10_pvals.push_back(test_result.log10p);
-        if (rho == 0) {
-          skat_result.pval = test_result.pval;
-          skat_result.info["LOG10P"] = to_string(-test_result.log10p);
-          skat_result.info["CF"] = to_string(cf);
-        }
-      }
-
-      int nvar = 0;
-      for (ssize_t v = 0; v < skato_ld_mat.rows(); ++v) {
-        if (skato_ld_mat(v, v) > 0) {
-          ++nvar;
-        }
-      }
-      skato_result.info["NVAR"] = to_string(nvar);
-
-      stat::tests::test_result_t skato_acat = stat::tests::acat(log10_pvals);
-      skato_result.pval = skato_acat.pval;
-      skato_result.info["LOG10P"] = to_string(-skato_acat.log10p);
-      skato_result.info["CF"] = to_string(cf);
-      if (conditional_variant_info != "") {
-        skato_result.info["CONDITIONAL"] = conditional_variant_info;
-      }
-      if (skato_acat == stat::tests::TEST_FAILED || log10_pvals.size() == 0) {
-        log_warning("SKATO test failed for " + skato_result.name);
-      } else {
-        skato_results.push_back(skato_result);
-      }
-
-      if (skat_result.pval == HTPv4_NA) {
-        stat::tests::test_result_t test_result = stat::tests::skato(Qskato_skat[i], Qskato_burden[i], 0, ld_mat_meta);
-        skat_result.pval = test_result.pval;
-        skat_result.info["LOG10P"] = to_string(-test_result.log10p);
-        skat_result.info["CF"] = to_string(cf);
-      }
-
-      if (conditional_variant_info != "") {
-        skat_result.info["CONDITIONAL"] = conditional_variant_info;
-      }
-      if (skat_result.pval < 0) {
-        log_warning("SKAT test failed for " + skat_result.name);
-      } else {
-        skato_results.push_back(skat_result);
-      }
-    }
-
-    if (vector_contains(this->acatv_params.af_bins, this->mask_set.get_mask_bin(i))) {
-      log_debug("computing ACATV");
-      htpv4_record_t acatv_result = result_template;
-      acatv_result.model = "REMETA-ACATV-META";
-
-      vector<double> mask_log10_pvals;
-      vector<double> mask_weights;
-      int nvar = 0;
-      double z = 0;
-
-      VectorXd Qacatv = masks.row(i).transpose().array() * scores_sum.array();
-      VectorXd weights = masks.row(i).transpose().array() * acatv_weights.array();
-      for (ssize_t v = 0; v < Qacatv.size(); ++v) {
-        double c = 1;
-        if (variant_z_scores(v) < this->acatv_params.sv_spa_z_score
-            && case_control_ratio < this->acatv_params.sv_spa_case_control_ratio) {
-          c *= variant_cf_sqrt(v);
-        }
-        if (weights[v] > 0 && scorev_sum(v) > 0) {
-          z = -abs(Qacatv[v]) / (c*sqrt(scorev_sum(v)));
-          mask_weights.push_back(weights[v]);
-          mask_log10_pvals.push_back(
-            min(
-              log10(0.99),
-              stat::tests::normal(z, true).log10p
-            )
-          );
-          ++nvar;
-        }
-      }
-
-      if (nvar > 0) {
-        stat::tests::test_result_t test_result = stat::tests::weighted_acat(mask_log10_pvals, mask_weights);
-        acatv_result.pval = test_result.pval;
-        acatv_result.info["LOG10P"] = to_string(-test_result.log10p);
-        acatv_result.info["NVAR"] = to_string(nvar);
-
-        if (conditional_variant_info != "") {
-          acatv_result.info["CONDITIONAL"] = conditional_variant_info;
-        }
-        acatv_results.push_back(acatv_result);
-      }
+      ++nvar;
     }
   }
 
-  vector<htpv4_record_t> results;
-  for (const htpv4_record_t& rec : burden_results) {
-    results.push_back(rec);
+  if (nvar > 0) {
+    stat::tests::test_result_t test_result = stat::tests::weighted_acat(mask_log10_pvals, mask_weights);
+    acatv_result.pval = test_result.pval;
+    acatv_result.info["LOG10P"] = to_string(-test_result.log10p);
+    acatv_result.info["NVAR"] = to_string(nvar);
+
+    if (sum_stats.conditional_variant_info != "") {
+      acatv_result.info["CONDITIONAL"] = sum_stats.conditional_variant_info;
+    }
+    acatv_results.push_back(acatv_result);
   }
-  for (const htpv4_record_t& rec : skato_results) {
-    results.push_back(rec);
-  }
-  for (const htpv4_record_t& rec : acatv_results) {
-    results.push_back(rec);
-  }
-  return results;
 }
 
 void HTPMetaAnalyzer::set_write_cohort_burden_tests(HTPv4Writer& burden_writer) {
@@ -1392,6 +1359,11 @@ void HTPMetaAnalyzer::check_info(const htpv4_record_t& rec) {
   if (rec.info.find("SCORE") == rec.info.end() && !this->recompute_score) {
     throw runtime_error("missing SCORE from INFO field of: " + rec.name);
   }
+}
+
+void HTPMetaAnalyzer::set_collapse_anno(const string& annotation) {
+  this->collapse_anno_int = this->mask_set.anno_to_int(annotation);
+  this->collapse_anno = true;
 }
 
 double HTPMetaAnalyzer::get_score(const htpv4_record_t& rec) {
@@ -1451,4 +1423,141 @@ bool HTPMetaAnalyzer::ld_mat_required() {
   return !this->ignore_mask_ld
     || !this->keep_variants_not_in_ld_mat
     || this->conditional_variants.size() > 0;
+}
+
+vector<htpv4_record_t> HTPMetaAnalyzer::meta_analyze_gene(Gene g) {
+  log_debug("entering HTPMetaAnalyzer::meta_analyze_gene");
+  log_debug("meta-analyzing " + g.get_name());
+
+  std::chrono::time_point<std::chrono::steady_clock> start;
+  std::chrono::duration<double> d;
+
+  start = std::chrono::steady_clock::now();
+  vector<variant_id> variants_found;
+  vector<int> variant_annotations;
+  this->get_variants(variants_found, variant_annotations, g);
+  d = std::chrono::steady_clock::now() - start;
+  log_debug("set variants: " + to_string(d.count()) + " seconds");
+  log_debug(to_string(variants_found.size()) + " variants found");
+
+  start = std::chrono::steady_clock::now();
+  log_debug("collecting summary statistics...");
+  GeneSumStats sum_stats = this->collect_sum_stats(variants_found, variant_annotations, this->mask_set, g);
+  d = std::chrono::steady_clock::now() - start;
+  log_debug("collect sum stats: " + to_string(d.count()) + " seconds");
+
+  if (sum_stats.masks.sum() == 0) {
+    log_warning("no variants found in " + g.get_name() + " masks");
+    return vector<htpv4_record_t>();
+  }
+
+  if (this->ld_mat_required() && !sum_stats.found_at_least_one_ld_mat) {
+    log_warning("no study contains an LD matrix for " + g.get_name() + ", skipping...");
+    return vector<htpv4_record_t>();
+  }
+
+  if (this->write_mask_snplist) {
+    this->write_snplist(sum_stats, g);
+  }
+
+  if (sum_stats.found_at_least_one_conditional_variant) {
+    this->compute_conditional_variant_stats(sum_stats);
+  }
+
+  this->compute_variant_spa(sum_stats);
+
+  log_debug("computing gene tests...");
+  start = std::chrono::steady_clock::now();
+  sum_stats.burden_scores = sum_stats.scores_sum.array() * sum_stats.burden_weights.array();
+  sum_stats.skato_scores =  sum_stats.scores_sum.array() * sum_stats.skato_weights.array();
+  vector<htpv4_record_t> burden_results;
+  vector<htpv4_record_t> skato_results;
+  vector<htpv4_record_t> acatv_results;
+
+  htpv4_record_t result_template_gene {
+    g.get_name(),
+    g.get_chrom(),
+    g.get_start(),
+    "ref",
+    "alt",
+    this->trait_name,
+    "",
+    "",
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    HTPv4_NA,
+    map<string, string>()
+  };
+  result_template_gene.info["SOURCE"] = "REMETA-GB";
+
+  for (int m = 0; m < sum_stats.nmasks; ++m) {
+    string mask_cohort_meta = util::format_cohort_meta(
+      this->cohorts,
+      vector<int>(sum_stats.mask_cohort_idx[m].begin(),
+      sum_stats.mask_cohort_idx[m].end())
+    );
+    string bin_name = mask_set.get_mask_alt(m);
+
+    htpv4_record_t result_template = result_template_gene;
+    result_template.name = g.get_name() + "." + bin_name;
+    result_template.alt = bin_name;
+    result_template.cohort = mask_cohort_meta;
+    result_template.info["MAX_MAC"] = to_string((int)sum_stats.mask_max_mac(m));
+
+    result_template.num_cases = sum_stats.mask_ncases[m];
+    if (this->trait_type == BT) {
+      result_template.num_controls = sum_stats.mask_ncontrols[m];
+    }
+
+    log_debug("running mask " + bin_name);
+    if (sum_stats.mask_indices[m].size() == 0) {
+      log_warning("mask " + g.get_name() + "." + bin_name + " does not have any variants");
+      continue;
+    }
+
+    SpMat ld_mat_meta = sum_stats.mask_selectors[m] * sum_stats.gene_ld_mat * sum_stats.mask_selectors[m].transpose();
+    if ((ld_mat_meta.diagonal().array() == 0).all()) {
+      // likely including imputed variants in mask, or as mismatch between variants in the LD matrix
+      // and variants in the summary statistics file
+      log_warning("found zero LD matrix for " + g.get_name() + "." + bin_name + ", skipping...");
+      continue;
+    }
+
+    log_debug("computing p-values");
+    if (vector_contains(this->burden_params.af_bins, this->mask_set.get_mask_bin(m))) {
+      this->compute_burden(burden_results, sum_stats, ld_mat_meta, result_template, m);
+    }
+
+    if (vector_contains(this->skato_params.af_bins, this->mask_set.get_mask_bin(m))) {
+      this->compute_skato(skato_results, sum_stats, ld_mat_meta, result_template, m);
+    }
+
+    if (vector_contains(this->acatv_params.af_bins, this->mask_set.get_mask_bin(m))) {
+      this->compute_acatv(acatv_results, sum_stats, result_template, m);
+    }
+  }
+
+  vector<htpv4_record_t> results;
+  for (const htpv4_record_t& rec : burden_results) {
+    results.push_back(rec);
+  }
+  for (const htpv4_record_t& rec : skato_results) {
+    results.push_back(rec);
+  }
+  for (const htpv4_record_t& rec : acatv_results) {
+    results.push_back(rec);
+  }
+  d = std::chrono::steady_clock::now() - start;
+  log_debug("computing gene tests: " + to_string(d.count()) + " seconds");
+  return results;
 }

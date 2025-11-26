@@ -11,16 +11,14 @@ using std::vector;
 void AnnoReader::open(const string& filepath) {
   BgzReader bgz_reader;
   bgz_reader.open(filepath);
-  int ncols = 0;
   if (!bgz_reader.eof()) {
     string line = bgz_reader.readline();
     vector<string> fields = util::str_split(line, "\t ");
-    ncols = fields.size();
   }
   bgz_reader.close();
 
   this->tabixed_reader.open(filepath);
-  if (ncols >= 5) {
+  if (this->tabixed_reader.indexed()) {
     log_debug("reading tabixed annotation file");
     this->type = TABIXED;
   } else {

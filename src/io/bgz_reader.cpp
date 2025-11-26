@@ -173,7 +173,7 @@ string BgzReader::readline() {
   if (this->eof()) {
     throw out_of_range("read past end of file " + this->filepath);
   } else if (this->closed()) {
-    throw runtime_error("reading a closed file");
+    throw runtime_error("reading a closed file " + this->filepath);
   }
 
   if (this->seek_set) {
@@ -191,7 +191,7 @@ string BgzReader::readline() {
   } else {
     int ret = bgzf_getline(this->bgzf, '\n', &this->buffer);
     if (ret < 0) {
-      throw runtime_error("bgzf_getline error " + to_string(ret));
+      throw runtime_error("bgzf_getline error " + to_string(ret) + " in file " + this->filepath);
     }
     line = string(this->buffer.s);
   }
@@ -251,6 +251,16 @@ void BgzReader::seek(string chrom, hts_pos_t position) {
   this->check_eof();
   this->seek_set = true;
   this->lines_read = 0;
+}
+
+void BgzReader::set_threads(int threads) {
+  if (this->closed()) {
+    throw runtime_error("calling set_threads on a closed file");
+  }
+  int ret = bgzf_mt(this->bgzf, threads, 0);
+  if (ret < 0) {
+    throw runtime_error("bgzf_mt error");
+  }
 }
 
 int64_t BgzReader::tell() {

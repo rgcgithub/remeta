@@ -77,11 +77,12 @@ GenePMetaAnalyzer::GenePMetaAnalyzer(const string& genep_file,
                                      const string& burden_model,
                                      const string& acatv_model,
                                      const string& skato_model,
-                                     const bool& include_sbat)
+                                     const string& sbat_model)
  : burden_model(burden_model)
  , acatv_model(acatv_model)
  , skato_model(skato_model)
- , include_sbat(include_sbat) {
+ , sbat_model(sbat_model)
+ {
   if (genep_file != "") {
     this->load_genep_file(genep_file);
   }
@@ -90,7 +91,17 @@ GenePMetaAnalyzer::GenePMetaAnalyzer(const string& genep_file,
 void GenePMetaAnalyzer::add_line(const htpv4_record_t& rec, const int& study_index) {
   log_debug("entering GenePMetaAnalyzer::add_line");
   log_debug("processing " + rec.name);
-  this->htpv4_records.push_back(rec);
+
+  bool keep_record = true;
+  for (size_t i = 0; i < this->genep_groups.size(); ++i) {
+    if (rec.model == this->sbat_model + "_" + this->genep_groups[i]) {
+      keep_record = false;
+    }
+  }
+  if (keep_record) {
+    this->htpv4_records.push_back(rec);
+  }
+
   model_e model = this->parse_model(rec);
   if (model == NONE) {
     return;
@@ -141,20 +152,20 @@ void GenePMetaAnalyzer::add_line(const htpv4_record_t& rec, const int& study_ind
         this->genep_records[gene].skato_source = update_source(this->genep_records[gene].skato_source, rec);
       }
     }
-  } else if (this->include_sbat && model == SBAT) {
+  } else if (model == SBAT) {
     // check for gene_p group in rec_model
     for (size_t i = 0; i < this->genep_groups.size(); ++i) {
-      if (rec.model == "ADD-WGR-BURDEN-SBAT_POS_" + this->genep_groups[i]
-        || rec.model == "ADD-WGR-BURDEN-SBAT_POS_" + this->genep_groups[i] + "-META"
-        || rec.model == "ADD-WGR-BURDEN-SBAT_NEG_" + this->genep_groups[i]
-        || rec.model == "ADD-WGR-BURDEN-SBAT_NEG_" + this->genep_groups[i] + "-META") {
-        log_debug("adding to SBAT pvalues " + this->genep_groups[i]);
+      if ( rec.model == this->sbat_model + "_POS_" + this->genep_groups[i]
+        || rec.model == this->sbat_model + "_POS_" + this->genep_groups[i] + "-META"
+        || rec.model == this->sbat_model + "_NEG_" + this->genep_groups[i]
+        || rec.model == this->sbat_model + "_NEG_" + this->genep_groups[i] + "-META") {
+        log_debug("adding to SBAT_META pvalues " + this->genep_groups[i]);
         this->genep_records[gene].sbat_log10_pvals[i].push_back(log10p);
         this->genep_records[gene].sbat_source = update_source(this->genep_records[gene].sbat_source, rec);
       }
     }
   }
-  log_debug("leaving GenePMetaAnalyzer::add_line");
+  log_debug("leaving GenePMetaAnalyzer::add_line"); 
 }
 
 vector<htpv4_record_t> GenePMetaAnalyzer::meta_analyze_before(const string& chr, const int& pos) {
@@ -190,9 +201,10 @@ vector<htpv4_record_t> GenePMetaAnalyzer::meta_analyze_before(const string& chr,
           results.push_back(skato_genep.first);
           genep_log10_pvals.push_back(skato_genep.second);
         }
-        if (rec.second.sbat_log10_pvals[i].size() > 0){
+        if (rec.second.sbat_log10_pvals[i].size() > 0) {
+          string out_model = this->sbat_model.find("REMETA") != string::npos ? this->sbat_model : this->sbat_model + "-META";
           pair<htpv4_record_t, double> sbat_genep =
-            this->meta_analyze_genep_group(rec.second, "BURDEN-SBAT-META", this->genep_groups[i], rec.second.sbat_source, rec.second.sbat_log10_pvals[i]);
+            this->meta_analyze_genep_group(rec.second, out_model, this->genep_groups[i], rec.second.sbat_source, rec.second.sbat_log10_pvals[i]);
           results.push_back(sbat_genep.first);
           genep_log10_pvals.push_back(sbat_genep.second);
         }
@@ -308,7 +320,7 @@ model_e GenePMetaAnalyzer::parse_model(const htpv4_record_t& rec) {
     return ACATV;
   } else if (rec.model == this->burden_model && rec.alt != "set") {
     return BURDEN;
-  } else if ( (rec.model.rfind("ADD-WGR-BURDEN-SBAT_POS", 0) == 0 || rec.model.rfind("ADD-WGR-BURDEN-SBAT_NEG", 0) == 0) && rec.alt == "set") {
+  } else if ( (rec.model.rfind(this->sbat_model + "_POS", 0) == 0 || rec.model.rfind(this->sbat_model + "_NEG", 0) == 0) && rec.alt == "set") {
     return SBAT;
   } else {
     return NONE;

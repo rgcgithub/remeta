@@ -18,11 +18,12 @@ void run_set_meta_analysis(SetMetaAnalyzer& meta,
     for (size_t i = 0; i < in_files.size(); ++i) {
       if (in_files[i].eof()) {
         continue;
-      }
-      try {
-        in_files[i].seek(chr, 0);
-      } catch (const runtime_error& err) {
-        continue;
+      } else if (in_files[i].indexed()) {
+        try {
+          in_files[i].seek(chr, 0);
+        } catch (const runtime_error& e) {
+          continue;
+        }
       }
     }
   }
@@ -32,7 +33,7 @@ void run_set_meta_analysis(SetMetaAnalyzer& meta,
     if (!in_files[i].eof()) {
       htpv4_record_t rec = in_files[i].readrec();
       htp_positions.push_back(HTPv4Pos(rec.chr, rec.pos));
-      if (vf.include_htp_record(rec)) {
+      if (vf.include_htp_record(rec, i)) {
         meta.add_line(rec, i);
       }
     } else {
@@ -52,6 +53,20 @@ void run_set_meta_analysis(SetMetaAnalyzer& meta,
     // if gene option is set, skip all genes other than the one requested
     if (gene != "" && g.get_name() != gene) {
       continue;
+    } else if (gene != "") {
+      for (size_t i = 0; i < in_files.size(); ++i) {
+        if (in_files[i].indexed()) {
+          in_files[i].seek(g.get_chrom(), g.get_start()-1);
+          if (in_files[i].eof()) continue;
+          rec = in_files[i].readrec();
+          if (vf.include_htp_record(rec, i)) {
+            meta.add_line(rec, i);
+          }
+          htp_positions[i] = HTPv4Pos(rec.chr, rec.pos);
+        } else {
+          log_warning("HTP file " + in_files[i].get_filepath() + " is not indexed");
+        }
+      }
     }
 
     // if chr option is set, skip all genes that are not on the requested chromosome
@@ -91,7 +106,7 @@ void run_set_meta_analysis(SetMetaAnalyzer& meta,
         log_error("HTP files must be sorted by chromosome and position: HTP file " + to_string(arg_min.first) + " is not sorted", 1);
       }
 
-      if (rec_pos >= gene_start && vf.include_htp_record(rec)) {
+      if (rec_pos >= gene_start && vf.include_htp_record(rec, arg_min.first)) {
         meta.add_line(rec, arg_min.first);
       }
 
@@ -107,6 +122,10 @@ void run_set_meta_analysis(SetMetaAnalyzer& meta,
 
     prv_gene_start = gene_start;
     prv_gene_chr = g.get_chrom();
+
+    if (gene == g.get_name()) {
+      break; // stop if we reached the requested gene
+    }
   }
   meta.clear_before(prv_gene_chr, 1000000000);
   out.close();

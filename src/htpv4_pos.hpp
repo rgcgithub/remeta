@@ -38,6 +38,10 @@ class HTPv4Pos {
     return !(*this < other);
   }
 
+  string to_string() {
+    return std::to_string(int_chr) + ":" + std::to_string(pos);
+  }
+
   int int_chr;
   int pos;
 };

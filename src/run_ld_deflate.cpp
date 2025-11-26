@@ -8,7 +8,7 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 #include "io/bgz_reader.hpp"
-#include "io/regenie_ld_matrix_writer.hpp"
+#include "io/ref_ld_matrix_writer.hpp"
 #include "logging.hpp"
 #include "util.hpp"
 
@@ -17,7 +17,7 @@ void run_ld_deflate(const string& ld_file,
                     const double& sparsity_threshold,
                     const string& out) {
   BgzReader ld_reader(ld_file);
-  RegenieLDMatrixWriter ld_writer(out, sample_size);
+  RefLDMatrixWriter ld_writer(out, 1);
 
   while (!ld_reader.eof()) {
     string gene = ld_reader.readline();
@@ -35,15 +35,26 @@ void run_ld_deflate(const string& ld_file,
       log_error("number of variants does not match the number of variances", 1);
     }
 
-    VectorXd variances(variant_ids.size());
+    vector<float> variances(variant_ids.size());
     for (size_t i = 0; i < variant_ids.size(); ++i) {
       try {
-        variances[i] = stod(tmp[i]);
+        variances[i] = stof(tmp[i]);
       } catch (const std::invalid_argument& e) {
         log_error("invalid variance value " + tmp[i] + " for gene " + gene, 1);
       }
+
+      if (variances[i] <= 0) {
+        log_error("found non-positive variance for variant " + variant_ids[i] + " in gene " + gene, 1);
+      }
     }
-    ld_writer.write_sparse_header(gene, variances, variant_ids, sparsity_threshold);
+    ld_writer.init_next_gene(gene,
+                             sparsity_threshold,
+                             sparsity_threshold,
+                             variant_ids,
+                             variances,
+                             vector<variant_id>(),
+                             vector<float>(),
+                             0);
 
     string n_ld_entries_str = ld_reader.readline();
     int n_ld_entries = 0;
@@ -64,14 +75,18 @@ void run_ld_deflate(const string& ld_file,
         int32_t j = stoi(ld_entries[1]);
         float corr = stof(ld_entries[2]);
         if (abs(corr*corr) >= sparsity_threshold) {
-          ld_writer.write_sparse_entry(sparse_matrix_entry{i, j, corr});
+          ld_writer.add_gene_gene_ld_entry(ref_ld_matrix_entry_t{variant_ids[i], variant_ids[j], corr});
         }
       } catch (const std::invalid_argument& e) {
         log_error("could not parse ld entries " + to_string(i + 1) + " for gene " + gene, 1);
       }
     }
+    ld_writer.write_gene_to_gene_ld_file();
 
-    ld_writer.write_sparse_footer();
+    int64_t addr = ld_writer.write_block_block_ld_to_buffer_ld_file(
+        block_block_ld_t {}, true
+    );
+    ld_writer.write_gene_to_index(gene, addr);
   }
   ld_writer.close();
   log_info("done!");

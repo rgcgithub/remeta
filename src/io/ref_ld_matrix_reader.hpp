@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 #include "bgz_reader.hpp"
 
@@ -42,6 +43,10 @@ class RefLDMatrixReader {
                         const std::vector<string>& gene_variants,
                         const std::string& gene_name);
 
+  void load_gene_ld_mat_sp_double(Eigen::SparseMatrix<double>& G_sp,
+                                  const vector<string>& gene_variants,
+                                  const string& gene_name);
+
   /*
     Loads the matrices for gene_name:
       * G   - the covariance matrix of variants in the gene
@@ -57,6 +62,13 @@ class RefLDMatrixReader {
                                 const std::vector<std::string>& gene_variants,
                                 const std::vector<std::string>& conditional_variants,
                                 const std::string& gene_name);
+
+  void load_conditional_ld_mats_sp_double(Eigen::SparseMatrix<double>& G_sp,
+                                          Eigen::MatrixXf& C,
+                                          Eigen::MatrixXf& G_C,
+                                          const std::vector<std::string>& gene_variants,
+                                          const std::vector<std::string>& conditional_variants,
+                                          const std::string& gene_name);
 
   /*
     Gives the list of variants in gene_name in the gene LD file
@@ -89,6 +101,7 @@ class RefLDMatrixReader {
 
   struct gene_ld_mat_t {
     Eigen::MatrixXf* G;
+    Eigen::SparseMatrix<double>* G_sp;
     // maps variant ids to the index of the stored LD matrix
     std::unordered_map<std::string, int32_t> gene_variant_idx_in_file;
     // maps variant ids to index in G (which can be smaller that what's stored)
@@ -124,7 +137,8 @@ class RefLDMatrixReader {
 
   void load_gene_ld_mat(gene_ld_mat_t& gene_ld,
                         const std::vector<string>& gene_variants,
-                        const std::string& gene_name);
+                        const std::string& gene_name,
+                        bool load_sparse = false);
 
   void load_gene_buffer_ld_mat(gene_buffer_ld_mat_t& gene_buffer_ld,
                                const gene_ld_mat_t& gene_ld,
@@ -134,6 +148,15 @@ class RefLDMatrixReader {
   void load_buffer_ld_mat(Eigen::MatrixXf& C,
                           const gene_buffer_ld_mat_t& gene_buffer_ld,
                           const std::vector<std::string>& buffer_variants);
+
+  void load_conditional_ld_mats_helper(Eigen::SparseMatrix<double>& G_sp,
+                                       Eigen::MatrixXf& G,
+                                       Eigen::MatrixXf& C,
+                                       Eigen::MatrixXf& G_C,
+                                       const std::vector<std::string>& gene_variants,
+                                       const std::vector<std::string>& conditional_variants,
+                                       const std::string& gene_name,
+                                       bool load_sparse);
 };
 
 #endif

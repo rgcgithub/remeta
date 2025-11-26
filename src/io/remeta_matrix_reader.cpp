@@ -5,6 +5,7 @@ using namespace std;
 
 #include <Eigen/Dense>
 using Eigen::MatrixXf;
+#include <Eigen/Sparse>
 
 #include "../util.hpp"
 #include "../logging.hpp"
@@ -67,17 +68,44 @@ void RemetaMatrixReader::load_gene_ld_mat(MatrixXf& G,
   }
 }
 
+void RemetaMatrixReader::load_gene_ld_mat_sp_double(Eigen::SparseMatrix<double>& G,
+                                                    const vector<string>& gene_variants,
+                                                    const string& gene_name) {
+  this->check_closed();
+  if (this->reader_opened == REF_READER) {
+    this->ref_reader.load_gene_ld_mat_sp_double(G, gene_variants, gene_name);
+  } else {
+    this->regenie_reader.load_gene_ld_mat_sp_double(G, gene_variants, gene_name);
+  }
+}
+
 void RemetaMatrixReader::load_conditional_ld_mats(Eigen::MatrixXf& G,
                                                   Eigen::MatrixXf& C,
                                                   Eigen::MatrixXf& G_C,
-                                                  const std::vector<std::string>& gene_variants,
-                                                  const std::vector<std::string>& conditional_variants,
-                                                  const std::string& gene_name) {
+                                                  const vector<string>& gene_variants,
+                                                  const vector<string>& conditional_variants,
+                                                  const string& gene_name) {
   this->check_closed();
   if (this->reader_opened == REF_READER) {
     this->ref_reader.load_conditional_ld_mats(G, C, G_C, gene_variants, conditional_variants, gene_name);
   } else {
     this->regenie_reader.load_gene_ld_mat(G, gene_variants, gene_name);
+    C.resize(0, 0);
+    G_C.resize(0, 0);
+  }
+}
+
+void RemetaMatrixReader::load_conditional_ld_mats_sp_double(Eigen::SparseMatrix<double>& G,
+                                                            Eigen::MatrixXf& C,
+                                                            Eigen::MatrixXf& G_C,
+                                                            const std::vector<std::string>& gene_variants,
+                                                            const std::vector<std::string>& conditional_variants,
+                                                            const std::string& gene_name) {
+  this->check_closed();
+  if (this->reader_opened == REF_READER) {
+    this->ref_reader.load_conditional_ld_mats_sp_double(G, C, G_C, gene_variants, conditional_variants, gene_name);
+  } else {
+    this->regenie_reader.load_gene_ld_mat_sp_double(G, gene_variants, gene_name);
     C.resize(0, 0);
     G_C.resize(0, 0);
   }

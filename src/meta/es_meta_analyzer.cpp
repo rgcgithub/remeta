@@ -16,7 +16,7 @@ using namespace std;
 ESMetaAnalyzer::ESMetaAnalyzer(const trait_type_e& trait_type,
                                const string& trait_name,
                                const vector<string>& cohorts,
-                               const int& nstudies)
+                               int nstudies)
  : trait_type(trait_type)
  , trait_name(trait_name)
  , cohorts(cohorts)
@@ -100,22 +100,26 @@ void ESMetaAnalyzer::add_line(const htpv4_record_t& rec,
     variant->sources[study_index] = rec.info.at("SOURCE");
   }
   if (rec.info.count("INFO") != 0) {
-    variant->info_scores[study_index] = stod(rec.info.at("INFO"));
+    try {
+      variant->info_scores[study_index] = stod(rec.info.at("INFO"));
+    } catch (const std::invalid_argument& e) {
+      variant->info_scores[study_index] = HTPv4_NA;
+    }
   }
   variant->cohort_idx.push_back(study_index);
   variant->models.insert(rec.model);
 
   variant->sample_sizes[study_index] = rec.num_cases;
   variant->meta_result.num_cases += rec.num_cases;
-  variant->meta_result.cases_ref += rec.cases_ref;
-  variant->meta_result.cases_het += rec.cases_het;
-  variant->meta_result.cases_alt += rec.cases_alt;
+  variant->meta_result.cases_ref += rec.cases_ref != HTPv4_NA ? rec.cases_ref : 0;
+  variant->meta_result.cases_het += rec.cases_het != HTPv4_NA ? rec.cases_het : 0;
+  variant->meta_result.cases_alt += rec.cases_alt != HTPv4_NA ? rec.cases_alt : 0;
   if (this->is_bt()) {
     variant->sample_sizes[study_index] += rec.num_controls;
     variant->meta_result.num_controls += rec.num_controls;
-    variant->meta_result.controls_ref += rec.controls_ref;
-    variant->meta_result.controls_het += rec.controls_het;
-    variant->meta_result.controls_alt += rec.controls_alt;
+    variant->meta_result.controls_ref += rec.controls_ref != HTPv4_NA ? rec.controls_ref : 0;
+    variant->meta_result.controls_het += rec.controls_het != HTPv4_NA ? rec.controls_het : 0;
+    variant->meta_result.controls_alt += rec.controls_alt != HTPv4_NA ? rec.controls_alt : 0;
   }
   log_debug("leaving ESMetaAnalyzer::add_line");
 }
@@ -154,7 +158,9 @@ vector<htpv4_record_t> ESMetaAnalyzer::meta_analyze_before(const string& chr,
         weight = 1 / pow(sse, 2);
         weights.push_back(weight);
         weight_sum += weight;
-        beta += weight * v.betas[i];      
+        beta += weight * v.betas[i];
+      } else {
+        weights.push_back(0);
       }
     }
 
@@ -254,10 +260,7 @@ vector<htpv4_record_t> ESMetaAnalyzer::meta_analyze_before(const string& chr,
 
       if (v.info_scores[i] != HTPv4_NA) {
         at_least_one_variant_has_info = true;
-        if (info != "") {
-          info += ",";
-        }
-        info += str(fmter % v.info_scores[i]);
+        info += string(info != "" ? "," : "") + str(fmter % v.info_scores[i]);
       }
     }
     if (at_least_one_variant_has_info) {

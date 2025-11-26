@@ -10,6 +10,8 @@ using std::min;
 using std::pair;
 using std::unordered_set;
 using std::vector;
+using std::cout;
+using std::endl;
 
 #include <boost/math/distributions.hpp>
 
@@ -20,6 +22,9 @@ using Eigen::MatrixXd;
 using Eigen::Ref;
 using Eigen::VectorXf;
 using Eigen::VectorXd;
+#include <Eigen/Sparse>
+using Eigen::SparseMatrix;
+using Eigen::Triplet;
 
 
 namespace stat::misc {
@@ -112,11 +117,26 @@ pair<double, double> wst_get_effect_size_unconditional(const Eigen::VectorXd& be
 }
 
 
-double get_se_from_beta_pval(const double& beta, const double& pval) {
-  boost::math::normal dist(0, 1);
-  double p = max(pval/2, std::numeric_limits<double>::min());
-  double z = boost::math::quantile(dist, p);
+double get_se_from_beta_log10p(double beta, double log10p) {
+  double chival = get_chisq_stat_from_log10p(log10p);
+  double z = sqrt(chival);
   return abs(beta / z);
+}
+
+
+double get_chisq_stat_from_log10p(double log10p) {
+  boost::math::chi_squared chisq1(1);
+  if (log10p < log10(std::numeric_limits<double>::min())) {
+    double val = -log10p * log(100) + log(2/M_PI);
+    return val - log(val);
+  } else {
+    return boost::math::quantile(
+      boost::math::complement(
+        boost::math::chi_squared(1),
+        pow(10, log10p)    
+      )
+    );
+  }
 }
 
 // Let: 
@@ -256,6 +276,46 @@ double estimate_nhets(const VectorXd& variant_nhets, const VectorXd& variant_aaf
   return max(nhets, max_hets);
 }
 
+double estimate_nhets(const VectorXd& variant_nhets, const VectorXd& variant_aafs, const SparseMatrix<double>& ld_sp) {
+  double nhets = variant_nhets(0);
+  double max_hets = nhets;
+  double f = 0;
+  double c = 0;
+  bool skip = false;
+  int j = 0;
+  VectorXd ld_diag = ld_sp.diagonal();
+  for (int i = 1; i < ld_sp.outerSize(); ++i) {
+    if (ld_diag(i) == 0 || variant_nhets(i) == 0) continue;
+    c = 0;
+    skip = false;
+    for (SparseMatrix<double>::InnerIterator it(ld_sp, i); it.index() < i; ++it) {
+      j = it.index();
+      // if there is a low mac in perfect LD, then skip variant i to not overcount
+      if (variant_nhets(j) > 0
+          && variant_nhets(j) < 20
+          && variant_aafs(i) == variant_aafs(j)
+          && it.value() == ld_diag(i) && ld_diag(i) == ld_diag(j)) {
+        skip = true;
+        break;
+      }
+      if (it.value() <= 0 || variant_nhets(j) == 0) {
+        f = 0;
+      } else {
+        f = (cov_to_prob(it.value(), variant_aafs(i), variant_aafs(j)) / variant_aafs(i)) * (1 - variant_aafs(i))
+          + (1 - cov_to_prob(it.value(), variant_aafs(i), variant_aafs(j)) / variant_aafs(i)) * variant_aafs(i);
+      }
+      f = max(0., min(1., f));
+      c += log(1 - f);
+    }
+
+    if (!skip) {
+      nhets += variant_nhets(i) * exp(c);
+      max_hets = max(max_hets, variant_nhets(i));
+    }
+  }
+  return max(nhets, max_hets);
+}
+
 double estimate_nhets(const VectorXd& variant_nhets, const VectorXd& variant_aafs, const Eigen::Ref<const MatrixXd> full_ld, const vector<int>& mask_indices) {
   double nhets = variant_nhets(0);
   double max_hets = nhets;
@@ -296,7 +356,7 @@ double estimate_nhets(const VectorXd& variant_nhets, const VectorXd& variant_aaf
   return max(nhets, max_hets);
 }
 
-double estimate_nalts(const VectorXd& variant_nalts, const VectorXd& variant_aafs, const Eigen::Ref<const MatrixXd> ld) {
+double estimate_nalts(const VectorXd& variant_nalts, const VectorXd& variant_aafs, const Eigen::Ref<const Eigen::MatrixXd> ld) {
   double nalts = variant_nalts(0);
   double max_alts = nalts;
   double f = 0;
@@ -309,6 +369,32 @@ double estimate_nalts(const VectorXd& variant_nalts, const VectorXd& variant_aaf
         f = 0;
       } else {
         f = cov_to_prob(ld(i, j), variant_aafs(i), variant_aafs(j)) / variant_aafs(i);
+      }
+      f = max(0., min(1., f));
+      c += log(1 - f*f);
+    }
+    nalts += variant_nalts(i) * exp(c);
+    max_alts = max(max_alts, variant_nalts(i));
+  }
+  return max(nalts, max_alts);
+}
+
+double estimate_nalts(const VectorXd& variant_nalts, const VectorXd& variant_aafs, const SparseMatrix<double>& ld_sp) {
+  double nalts = variant_nalts(0);
+  double max_alts = nalts;
+  double f = 0;
+  double c = 0;
+  int j = -1;
+  VectorXd ld_diag = ld_sp.diagonal();
+  for (int i = 1; i < ld_sp.outerSize(); ++i) {
+    if (ld_diag(i) == 0 || variant_nalts(i) == 0) continue;
+    c = 0;
+    for (SparseMatrix<double>::InnerIterator it(ld_sp, i); it.index() < i; ++it) {
+      j = it.index();
+      if (it.value() <= 0 || variant_nalts(j) == 0) {
+        f = 0;
+      } else {
+        f = cov_to_prob(it.value(), variant_aafs(i), variant_aafs(j)) / variant_aafs(i);
       }
       f = max(0., min(1., f));
       c += log(1 - f*f);
@@ -391,7 +477,19 @@ void rescale_cov(MatrixXd& cov, const VectorXd& by_diag) {
     if (cov(i, i) == 0) {
       D.diagonal()[i] = 0;
     } else {
-      D.diagonal()[i] = sqrt(by_diag(i) / cov(i, i));
+      D.diagonal()[i] = sqrt(abs(by_diag(i) / cov(i, i)));
+    }
+  }
+  cov = D * cov * D;
+}
+
+void rescale_cov(SparseMatrix<double>& cov, const Eigen::VectorXd& cov_diag, const Eigen::VectorXd& by_diag) {
+  DiagonalMatrix<double, Eigen::Dynamic> D(by_diag.size());
+  for (ssize_t i = 0; i < by_diag.size(); ++i) {
+    if (cov_diag(i) == 0) {
+      D.diagonal()[i] = 0;
+    } else {
+      D.diagonal()[i] = sqrt(abs(by_diag(i) / cov_diag(i)));
     }
   }
   cov = D * cov * D;
@@ -431,6 +529,118 @@ void rescale_cov_block(MatrixXd& G,
   G = D1 * G * D1;
   C = D2 * C * D2;
   G_C = D1 * G_C * D2;
+}
+
+void rescale_cov_block(SparseMatrix<double>& Gsp,
+                       MatrixXd& C,
+                       MatrixXd& G_C,
+                       const VectorXd& G_diag,
+                       const VectorXd& by_G_diag,
+                       const VectorXd& by_C_diag) {
+  VectorXd G_diag_nonzero = G_diag;
+  for (ssize_t i = 0; i < G_diag.size(); ++i) {
+    if (G_diag[i] == 0) {
+      G_diag_nonzero[i] = 1;
+    } else {
+      G_diag_nonzero[i] = G_diag[i];
+    }
+  }
+  VectorXd C_diag = C.diagonal();
+  for (ssize_t i = 0; i < C_diag.size(); ++i) {
+    if (C(i, i) == 0) {
+      C_diag[i] = 1;
+    } else {
+      C_diag[i] = C(i, i);
+    }
+  }
+
+  SparseMatrix<double> D1 = SparseMatrix<double>(
+                              (by_G_diag.array() / G_diag_nonzero.array())
+                              .sqrt()
+                              .matrix()
+                              .asDiagonal()
+                            );
+  MatrixXd D2 = (by_C_diag.array() / G_diag_nonzero.array())
+                .sqrt()
+                .matrix()
+                .asDiagonal(); 
+
+  SparseMatrix<double> Gtmp = D1 * Gsp * D1;
+  std::swap(Gsp, Gtmp);
+  C = D2 * C * D2;
+  G_C = D1 * G_C * D2;
+}
+
+void collapse_anno(SparseMatrix<double>& Gsp,
+                   Eigen::Ref<VectorXd> scores,
+                   Eigen::Ref<VectorXd> scorev,
+                   Eigen::Ref<VectorXd> ses,
+                   const VectorXd& anno_indicators) {
+  ssize_t anno_idx = 0;
+  for (ssize_t v = 0; v < scores.size(); ++v) {
+    if (anno_indicators(v) == 1) {
+      anno_idx = v;
+      break;
+    }
+  }
+
+  vector<Triplet<double> > anno_collapsor_triplets;
+  for (ssize_t v = 0; v < scores.size(); ++v) {
+    if (anno_indicators(v) == 1) {
+      anno_collapsor_triplets.push_back(Triplet<double>(anno_idx, v, 1));
+    } else {
+      anno_collapsor_triplets.push_back(Triplet<double>(v, v, 1));
+    }
+  }
+  SparseMatrix<double> anno_collapsor(Gsp.rows(), Gsp.cols());
+  anno_collapsor.setFromTriplets(anno_collapsor_triplets.begin(), anno_collapsor_triplets.end());
+
+  double burden_score = (scores.transpose() * anno_indicators).value();
+  double burden_var = (anno_indicators.transpose() * Gsp * anno_indicators).value();
+  double z = burden_score / sqrt(burden_var);
+  if (burden_score == 0 || burden_var == 0) {
+    return ;
+  }
+
+  VectorXd G_diag = Gsp.diagonal();
+  SparseMatrix<double> beta_cov;
+  VectorXd D = (G_diag.array() > 0).select(
+    ses.array() / G_diag.array().sqrt(),
+    VectorXd::Zero(ses.rows())
+  ).matrix();
+  beta_cov = D.asDiagonal() * Gsp * D.asDiagonal();
+  VectorXd beta_weights = (beta_cov.diagonal().array() > 0).select(
+    beta_cov.diagonal().array().inverse(),
+    0
+  );
+
+  double weight_sum = (anno_indicators.transpose() * beta_weights).value();
+  double beta_var = (
+    (anno_indicators.array()*beta_weights.array()).matrix().transpose()/weight_sum 
+    * beta_cov
+    * (anno_indicators.array()*beta_weights.array()).matrix()/weight_sum
+  ).value();
+  double anno_se = sqrt( beta_var );
+
+  Gsp = anno_collapsor * Gsp * anno_collapsor.transpose();
+  G_diag = Gsp.diagonal();
+  for (ssize_t i = 0; i < scores.size(); ++i) {
+    if (i == anno_idx) {
+      ses(i) = anno_se;
+      scores(i) = z / anno_se;
+      scorev(i) = 1 / (anno_se * anno_se);
+      D(i) = sqrt(scorev(i) / G_diag(i));
+    } else if (anno_indicators(i) == 1) {
+      ses(i) = 0;
+      scores(i) = 0;
+      scorev(i) = 0;
+      D(i) = 0;
+    } else {
+      D(i) = 1;
+    }
+  }
+
+  Gsp = D.asDiagonal() * Gsp * D.asDiagonal();
 }
 
 };

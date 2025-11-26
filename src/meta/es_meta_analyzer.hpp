@@ -38,7 +38,7 @@ class ESMetaAnalyzer : public VariantMetaAnalyzer {
   ESMetaAnalyzer(const trait_type_e& trait_type,
                  const string& trait_name,
                  const vector<string>& cohorts,
-                 const int& nstudies);
+                 int nstudies);
 
   void add_line(const htpv4_record_t& htpv4_rec, const int& study_index);
 

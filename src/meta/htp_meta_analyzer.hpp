@@ -4,12 +4,14 @@
 #include "../lapack_complex.hpp"
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include <Eigen/Dense>
 
 #include "set_meta_analyzer.hpp"
 #include "../io/allele_freq_writer.hpp"
+#include "../io/anno_reader.hpp"
 #include "../io/gene_set_reader.hpp"
 #include "../io/bgz_reader.hpp"
 #include "../io/bgz_writer.hpp"
@@ -74,14 +76,95 @@ class HTPMetaVariant {
     double an;
     double max_aaf;
 
-    // these get set when meta_analyze_gene is called
+    // this gets set when get_variants is called
     double aaf;
-    double burden_weight;
-    double skato_weight;
-    double acatv_weight;
 
-    // this gets update when meta_analyze_gene is called
+    // this gets set when get_variants is called
     bool is_singleton;
+};
+
+class GeneSumStats {
+ public:
+  GeneSumStats(int nvariants, int nmasks, int nstudies);
+
+  int nvariants;
+  int nmasks;
+  int nstudies;
+
+  // Indicator matrix. Entry i, j is 1 if variants_found[j]
+  // is contained in mask_set.get_mask(i).
+  Eigen::MatrixXd masks;
+  // Matrix types hold sum stats per study
+  // Vector types hold sum stats aggregated across studies
+  Eigen::MatrixXi mask_ncases_per_study;
+  Eigen::MatrixXi mask_ncontrols_per_study;
+  Eigen::MatrixXd mask_betas;
+  Eigen::MatrixXd mask_ses;
+  Eigen::MatrixXd mask_aafs;
+  Eigen::MatrixXd mask_cases_het;
+  Eigen::MatrixXd mask_cases_alt;
+  Eigen::MatrixXd mask_controls_het;
+  Eigen::MatrixXd mask_controls_alt;
+  Eigen::VectorXd mask_cf;
+  Eigen::VectorXd mask_pval;
+  Eigen::VectorXd mask_nhet;
+  Eigen::VectorXd mask_nhom_alt;
+  Eigen::VectorXd mask_nhom_ref;
+  Eigen::VectorXd mask_case_control_ratio;
+  Eigen::VectorXd mask_aaf;
+  Eigen::MatrixXi mask_max_mac;
+  std::vector<std::vector<int> > mask_indices;
+  std::vector<std::unordered_set<int> > mask_cohort_idx;
+  std::vector<std::vector<std::string> > mask_variants;
+  vector<int> mask_ncases;
+  vector<int> mask_ncontrols;
+  std::vector<Eigen::SparseMatrix<double> > mask_selectors;
+  std::vector<Eigen::SparseMatrix<double> > mask_collapsors;
+
+  // Single variant stats
+  Eigen::MatrixXd scores;
+  Eigen::MatrixXd scorev;
+  Eigen::MatrixXd betas;
+  Eigen::MatrixXd ses;
+  Eigen::MatrixXd aafs; // per cohort aafs
+  Eigen::MatrixXd ncases;
+  Eigen::MatrixXd cases_het;
+  Eigen::MatrixXd cases_alt;
+  Eigen::MatrixXd ncontrols;
+  Eigen::MatrixXd controls_het;
+  Eigen::MatrixXd controls_alt;
+  Eigen::VectorXd meta_aafs; // aafs for masks
+  Eigen::VectorXd meta_aacs;
+  Eigen::VectorXi is_singleton;
+  Eigen::VectorXd burden_weights;
+  Eigen::VectorXd skato_weights;
+  Eigen::VectorXd acatv_weights;
+  Eigen::VectorXd scores_sum;
+  Eigen::VectorXd scorev_sum;
+
+  std::vector<double> study_sample_size;
+  Eigen::VectorXd skato_var_to_collapse;
+  Eigen::VectorXd collapse_anno_indicators;
+  double max_ccr;
+  std::vector<std::string> gene_conditional_variants;
+  Eigen::MatrixXd gene_cond_scores;
+  Eigen::MatrixXd gene_cond_scorev;
+  std::vector<std::unordered_set<variant_id> > ld_variants_found;
+
+  Eigen::SparseMatrix<double> gene_ld_mat;
+  Eigen::MatrixXd gene_buffer_ld_mat;
+  Eigen::MatrixXd buffer_ld_mat;
+
+  bool found_at_least_one_conditional_variant;
+  bool found_at_least_one_ld_mat;
+  string conditional_variant_info;
+
+  Eigen::VectorXd variant_cf_sqrt;
+  Eigen::VectorXd variant_z_scores;
+  Eigen::VectorXd burden_scores;
+  Eigen::VectorXd skato_scores;
+
+  std::vector<Eigen::SparseMatrix<double> > cohort_ld_mats;
 };
 
 struct burden_params_t {
@@ -101,6 +184,7 @@ struct skato_params_t {
   std::vector<double> rho_values;
   weight_strategy_e weight_strategy;
   int min_aac;
+  int collapse_below_aac;
   double mask_spa_z_score;
   double mask_spa_case_control_ratio;
   double sv_spa_z_score;
@@ -145,6 +229,7 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
                      const std::vector<double>& rho_values,
                      const weight_strategy_e& weight_strategy,
                      int min_aac,
+                     int collapse_below_aac,
                      double mask_spa_pval,
                      double mask_spa_case_control_ratio,
                      double sv_spa_pval,
@@ -168,11 +253,23 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
 
   void set_write_freqs(AlleleFreqWriter& freq_writer);
 
+  void set_collapse_anno(const string& anno_name);
+
   void add_line(const htpv4_record_t& rec, const int& study_index);
 
   vector<htpv4_record_t> meta_analyze_gene(Gene g);
 
   void clear_before(const string& chrom, const int& before_pos);
+
+  // populate variants_found and variant_annotations based on the htp entries collected with add_line
+  void get_variants(vector<variant_id>& variants_found,
+                    vector<int>& variant_annotations,
+                    Gene g);
+
+  GeneSumStats collect_sum_stats(const vector<variant_id>& variants_found,
+                                 const vector<int>& variant_annotations,
+                                 const MaskSet& mask_set,
+                                 const Gene& g);
 
  private:
   std::string trait_name;
@@ -235,10 +332,37 @@ class HTPMetaAnalyzer : public SetMetaAnalyzer {
   bool write_freqs;
   AlleleFreqWriter* freq_writer;
 
+  // set by set_collapse_anno
+  int collapse_anno_int;
+  bool collapse_anno;
+
   void check_info(const htpv4_record_t& rec);
   double get_score(const htpv4_record_t& rec);
   double get_scorev(const htpv4_record_t& rec);
   bool ld_mat_required();
+
+  void write_snplist(const GeneSumStats& sum_stats, const Gene& g);
+
+  void compute_conditional_variant_stats(GeneSumStats& sum_stats);
+
+  void compute_variant_spa(GeneSumStats& sum_stats);
+
+  void compute_burden(vector<htpv4_record_t>& burden_results,
+                      GeneSumStats& sum_stats,
+                      const Eigen::SparseMatrix<double>& ld_mat_meta,
+                      const htpv4_record_t& result_template,
+                      int mask_idx);
+
+  void compute_skato(vector<htpv4_record_t>& skato_results,
+                     const GeneSumStats& sum_stats,
+                     const Eigen::SparseMatrix<double>& ld_mat_meta,
+                     const htpv4_record_t& result_template,
+                     int mask_idx);
+
+  void compute_acatv(vector<htpv4_record_t>& acatv_results,
+                     const GeneSumStats& sum_stats,
+                     const htpv4_record_t& result_template,
+                     int mask_idx);
 };
 
 #endif

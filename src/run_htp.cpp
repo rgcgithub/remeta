@@ -27,55 +27,58 @@
 namespace pc = parameter_checks;
 
 void run_htp(
-  const std::vector<std::string>& htp_files,
-  const std::vector<std::string>& ld_prefixes,
-  const std::vector<std::string>& cohorts,
-  const std::string& anno_file,
-  const std::string& set_list_file,
-  const std::string& mask_def_file,
-  const std::string& trait_name,
-  const std::string& trait_type,
-  const std::string& out_prefix,
-  const std::vector<double>& burden_aaf_bins,
-  const std::string& burden_singleton_def,
-  const std::string& burden_weight_strategy,
+  const vector<string>& htp_files,
+  const vector<string>& ld_prefixes,
+  const vector<string>& cohorts,
+  const string& anno_file,
+  const string& set_list_file,
+  const string& mask_def_file,
+  const string& trait_name,
+  const string& trait_type,
+  const string& out_prefix,
+  const vector<double>& burden_aaf_bins,
+  const string& burden_singleton_def,
+  const string& burden_weight_strategy,
   double burden_mask_spa_pval,
   double burden_mask_spa_ccr,
   double burden_sv_spa_pval,
   double burden_sv_spa_ccr,
   bool skip_burden,
   double skato_max_aaf,
-  const std::vector<double>& skato_rho_values,
+  const vector<double>& skato_rho_values,
   int skato_min_aac,
-  const std::string& skato_weight_strategy,
+  const string& skato_weight_strategy,
   double skato_mask_spa_pval,
   double skato_mask_spa_ccr,
   double skato_sv_spa_pval,
   double skato_sv_spa_ccr,
+  int skato_collapse_below_aac,
   bool skip_skato,
   double acatv_max_aaf,
   int acatv_min_aac,
-  const std::string& acatv_weight_strategy,
+  const string& acatv_weight_strategy,
   double acatv_sv_spa_pval,
   double acatv_sv_spa_ccr,
   bool skip_acatv,
-  const std::string& condition_list_file,
-  const std::vector<std::string>& condition_htp_files,
+  const string& condition_list_file,
+  const vector<string>& condition_htp_files,
   int max_cond_var_per_gene,
-  const std::string& af_strategy,
-  const std::string& af_file,
-  const std::string& chr,
-  const std::string& gene,
-  const std::string& extract_file,
-  const std::string& exclude_file,
-  const std::vector<std::string>& sources,
+  const string& af_strategy,
+  const string& af_file,
+  const string& chr,
+  const string& gene,
+  const string& extract_file,
+  const vector<string>& cohort_extract_files,
+  const string& exclude_file,
+  const vector<string>& sources,
   int threads,
   bool write_cohort_burden_tests,
   bool write_mask_snplist,
   bool ignore_mask_ld,
   bool recompute_score,
   bool keep_variants_not_in_ld_mat,
-  bool write_freqs
+  bool write_freqs,
+  const string& collapse_anno_name
 ) {
   pc::check_htp_files(htp_files);
   pc::check_file_exists(anno_file);
@@ -117,6 +120,10 @@ void run_htp(
   if (extract_file != "") {
     pc::check_file_exists(extract_file);
   }
+  vector<string> parsed_cohort_extract_files(htp_files.size(), "");
+  if (cohort_extract_files.size() > 0) {
+    parsed_cohort_extract_files = pc::check_cohort_extract_files(cohort_extract_files, cohorts);
+  }
   if (exclude_file != "") {
     pc::check_file_exists(exclude_file);
   }
@@ -128,6 +135,11 @@ void run_htp(
   }
   if (extract_file != "") {
     vf.set_extract_file(extract_file);
+  }
+  for (size_t i = 0; i < parsed_cohort_extract_files.size(); ++ i) {
+    if (parsed_cohort_extract_files[i] != "") {
+      vf.set_cohort_extract_file(parsed_cohort_extract_files[i], i);
+    }
   }
   if (exclude_file != "") {
     vf.set_exclude_file(exclude_file);
@@ -175,6 +187,7 @@ void run_htp(
       skato_rho_values,
       skato_weights,
       skato_min_aac,
+      skato_collapse_below_aac,
       skato_mask_spa_pval,
       skato_mask_spa_ccr,
       skato_sv_spa_pval,
@@ -224,6 +237,9 @@ void run_htp(
   }
   if (ignore_mask_ld) {
     meta.set_ignore_mask_ld();
+  }
+  if (collapse_anno_name != "") {
+    meta.set_collapse_anno(collapse_anno_name);
   }
 
   HTPv4Writer burden_out; 

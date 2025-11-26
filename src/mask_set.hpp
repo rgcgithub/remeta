@@ -37,6 +37,10 @@ class Mask {
     return freq;
   }
 
+  vector<int> get_annotations() const { 
+    return annotations;
+  }
+
   string name;
   string alt;
  private:
@@ -60,7 +64,7 @@ class MaskSet {
     string line;
     stringstream ss;
     vector<vector<string> > mask_annotations;
-    vector<string> mask_names;
+    vector<string> mask_names_vec;
     while (!reader.eof()) {
       line = reader.readline();
       ss = stringstream(line);
@@ -71,7 +75,8 @@ class MaskSet {
         log_error("in " + mask_def_file + ": mask names cannot contain '.'", 1);
       }
 
-      mask_names.push_back(mask_name);
+      mask_names_vec.push_back(mask_name);
+      mask_names.insert(mask_name);
 
       ss >> anno_str;
       ss = stringstream(anno_str);
@@ -92,8 +97,16 @@ class MaskSet {
         annotations_int[anno_int[annotation]] = 1;
       }
       for (double freq : freq_bins) {
-        masks.push_back(Mask(mask_names[i], freq, annotations_int));
+        masks.push_back(Mask(mask_names_vec[i], freq, annotations_int));
       }
+    }
+  }
+
+  MaskSet(vector<Mask> masks, unordered_map<string, int> anno_int)
+   : masks(masks)
+   , anno_int(anno_int) {
+    for (const Mask& mask : masks) {
+      mask_names.insert(mask.name);
     }
   }
 
@@ -111,6 +124,10 @@ class MaskSet {
     return annotation != -1 && masks.at(mask).contains(annotation, aaf, is_singleton);
   }
 
+  bool mask_name_contains(string mask_name) const {
+    return mask_names.find(mask_name) != mask_names.end(); 
+  }
+
   string get_mask_name(int mask) const {
     return masks.at(mask).name;
   }
@@ -123,6 +140,10 @@ class MaskSet {
     return masks.at(mask).freq_bin();
   }
 
+  vector<int> get_mask_annotations(int mask) const {
+    return masks.at(mask).get_annotations();
+  }
+
   int anno_to_int(string anno) const {
     if (anno_int.find(anno) == anno_int.end()) {
       return -1;
@@ -131,9 +152,18 @@ class MaskSet {
     }
   }
 
+  unordered_map<string, int> get_anno_map() const {
+    return anno_int;
+  }
+
+  vector<Mask> get_masks() const {
+    return masks;
+  }
+
  private:
   vector<Mask> masks;
   unordered_map<string, int> anno_int;
+  std::unordered_set<std::string> mask_names;
 };
 
 #endif

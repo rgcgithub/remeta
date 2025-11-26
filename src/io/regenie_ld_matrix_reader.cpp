@@ -10,6 +10,9 @@ using namespace std;
 #include <Eigen/Dense>
 using Eigen::MatrixXd;
 using Eigen::MatrixXf;
+#include <Eigen/Sparse>
+using Eigen::SparseMatrix;
+typedef Eigen::Triplet<double> Triplet;
 
 #include "bgz_reader.hpp"
 
@@ -202,6 +205,37 @@ void RegenieLDMatrixReader::load_gene_ld_mat(MatrixXf& G,
       }
     }
   }
+}
+
+void RegenieLDMatrixReader::load_gene_ld_mat_sp_double(SparseMatrix<double>& G_sp,
+                                                       const vector<string>& gene_variants,
+                                                       const string& gene_name) {
+  MatrixXf full_ld_mat;
+  vector<string> variant_ids;
+  this->load_ld_mat(full_ld_mat, variant_ids, gene_name);
+  G_sp.resize(gene_variants.size(), gene_variants.size());
+
+  unordered_map<string, int> variant_to_index_in_G;
+  for (size_t i = 0; i < gene_variants.size(); ++i) {
+    variant_to_index_in_G[gene_variants[i]] = i;
+  }
+
+  vector<Triplet> triplets;
+  for (size_t i = 0; i < variant_ids.size(); ++i) {
+    for (size_t j = 0; j < variant_ids.size(); ++j) {
+      if (variant_to_index_in_G.count(variant_ids[i]) > 0
+          && variant_to_index_in_G.count(variant_ids[j]) > 0) {
+        triplets.push_back(
+          Triplet(
+            variant_to_index_in_G.at(variant_ids[i]),
+            variant_to_index_in_G.at(variant_ids[j]),
+            static_cast<double>(full_ld_mat(i, j))
+          )
+        );
+      }
+    }
+  }
+  G_sp.setFromTriplets(triplets.begin(), triplets.end());
 }
 
 void RegenieLDMatrixReader::load_ld_mat_dense(MatrixXf& mat) {

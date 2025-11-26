@@ -77,6 +77,9 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
     int controls_ref = 0;
     int controls_het = 0;
     int controls_alt = 0;
+    double aac = 0;
+    double an = 0;
+    bool has_genotype_counts = true;
     rec_chr = this->htpv4_recs[key][0].chr;
     rec_pos = this->htpv4_recs[key][0].pos;
     string source_list = "";
@@ -105,16 +108,23 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
       }
       models.insert(rec.model);
 
+      bool has_genotype_counts = rec.cases_ref != HTPv4_NA && has_genotype_counts;
       num_cases += rec.num_cases;
-      cases_ref += rec.cases_ref;
-      cases_het += rec.cases_het;
-      cases_alt += rec.cases_alt;
+      cases_ref += rec.cases_ref != HTPv4_NA ? rec.cases_ref : 0;
+      cases_het += rec.cases_het != HTPv4_NA ? rec.cases_het : 0;
+      cases_alt += rec.cases_alt != HTPv4_NA ? rec.cases_alt : 0;
       num_controls += rec.num_controls;
       if (this->is_bt()) {
-        controls_ref += rec.controls_ref;
-        controls_het += rec.controls_het;
-        controls_alt += rec.controls_alt;
+        controls_ref += rec.controls_ref != HTPv4_NA ? rec.controls_ref : 0;
+        controls_het += rec.controls_het != HTPv4_NA ? rec.controls_het : 0;
+        controls_alt += rec.controls_alt != HTPv4_NA ? rec.controls_alt : 0;
       }
+      if (rec.aaf != HTPv4_NA) {
+        double ss = this->is_bt() ? rec.num_cases + rec.num_controls : rec.num_cases;
+        aac += 2*ss*rec.aaf;
+        an += 2*ss;
+      }
+
 
       if (this->unweighted) {
         sample_sizes.push_back(1.0);
@@ -163,8 +173,10 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
     stat::tests::test_result_t test_result;
     if (this->method == STOUFFERS) {
       vector<double> weights;
+      double weight_sum = 0;
       for (const double& s : sample_sizes) {
         weights.push_back(sqrt(s));
+        weight_sum += s;
       }
 
       bool all_var_have_sign = log10_pvals.size() == signs.size();
@@ -189,6 +201,7 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
       model += m;
     }
     model += "-META";
+
     results.push_back(
       htpv4_record_t {
         rec0.name,
@@ -203,15 +216,15 @@ vector<htpv4_record_t> PVMetaAnalyzer::meta_analyze_before(const string& chr,
         HTPv4_NA,
         HTPv4_NA,
         test_result.pval,
-        HTPv4_NA,
+        has_genotype_counts ? aac / an : HTPv4_NA,
         num_cases,
-        HTPv4_NA,
-        HTPv4_NA,
-        HTPv4_NA,
+        has_genotype_counts ? static_cast<double>(cases_ref) : HTPv4_NA,
+        has_genotype_counts ? static_cast<double>(cases_het) : HTPv4_NA,
+        has_genotype_counts ? static_cast<double>(cases_alt) : HTPv4_NA,
         (this->is_bt() ? num_controls : HTPv4_NA),
-        HTPv4_NA,
-        HTPv4_NA,
-        HTPv4_NA,
+        this->is_bt() && has_genotype_counts ? static_cast<double>(controls_ref) : HTPv4_NA,
+        this->is_bt() && has_genotype_counts ? static_cast<double>(controls_het) : HTPv4_NA,
+        this->is_bt() && has_genotype_counts ? static_cast<double>(controls_alt) : HTPv4_NA,
         map<string, string>()
       }
     );

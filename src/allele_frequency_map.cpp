@@ -75,7 +75,17 @@ af_info_t AlleleFrequencyMap::parse_af_file_line(const string& line) {
     return af_info;
 
   // If five columns found: ID FREQ IS_SINGLETON CHROM POS
-  } else if (line_split.size() == 5) {
+  // Or six columns found with an additional AN
+  } else if (line_split.size() >= 5 && (line_split[2] == "0" || line_split[2] == "1")) {
+    return af_info_t {
+      line_split[0],
+      line_split[3],
+      stoi(line_split[4]),
+      stod(line_split[1]),
+      line_split[2] == "1" ? YES : NO,
+    };
+  // Or six columns found with an additional AN
+  } else if (line_split.size() >= 5 && (line_split[2] == "0" || line_split[2] == "1")) {
     return af_info_t {
       line_split[0],
       line_split[3],

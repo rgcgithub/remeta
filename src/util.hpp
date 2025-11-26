@@ -12,6 +12,7 @@ namespace util {
   bool file_exists(std::string filename);
   std::string format_cohort_meta(const std::vector<std::string>& cohorts, std::vector<int> cohorts_to_include);
   std::vector<std::vector<htpv4_record_t> > get_htp_variants(const std::string& variant_file, const std::vector<std::string>& htp_files, const string& chr = "");
+  std::vector<int> rank_num(const std::vector<double>& values, bool ascending = true);
 }
 
 #endif

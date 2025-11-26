@@ -231,7 +231,11 @@ void BlockPgenReader::load_block(Eigen::MatrixXf& genotype_block,
                                  const int& block_index,
                                  const int& block_size) {
   if (genotype_block.rows() != (ssize_t)this->get_nkeep_samples()) {
-    throw runtime_error("genotype block dimension mismatch");
+    throw runtime_error(
+      "genotype block dimension mismatch ("
+      + to_string(genotype_block.rows()) + " != " + to_string(this->get_nkeep_samples())
+      + ")"
+      );
   }
 
   int start_idx;

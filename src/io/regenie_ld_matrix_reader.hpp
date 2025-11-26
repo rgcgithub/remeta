@@ -11,6 +11,7 @@ using namespace std;
 #include <htslib/kstring.h>
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 class RegenieLDMatrixReader {
  public:
@@ -38,6 +39,10 @@ class RegenieLDMatrixReader {
   void load_gene_ld_mat(Eigen::MatrixXf& G,
                         const std::vector<std::string>& gene_variants,
                         const std::string& gene_name);
+
+  void load_gene_ld_mat_sp_double(Eigen::SparseMatrix<double>& G,
+                                  const vector<string>& gene_variants,
+                                  const string& gene_name);
 
   void load_variant_ids(std::vector<std::string>& variant_ids, const string& gene_name);
 

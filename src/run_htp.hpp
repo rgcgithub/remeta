@@ -35,6 +35,7 @@ void run_htp(
   double skato_mask_spa_ccr,
   double skato_sv_spa_pval,
   double skato_sv_spa_ccr,
+  int skato_collapse_below_aac,
   bool skip_skato,
   double acatv_max_aaf,
   int acatv_min_aac,
@@ -50,6 +51,7 @@ void run_htp(
   const std::string& chr,
   const std::string& gene,
   const std::string& extract_file,
+  const std::vector<std::string>& cohort_extract_files,
   const std::string& exclude_file,
   const std::vector<std::string>& sources,
   int threads,
@@ -58,7 +60,8 @@ void run_htp(
   bool ignore_mask_ld,
   bool recompute_score,
   bool keep_variants_not_in_ld_mat,
-  bool write_freqs
+  bool write_freqs,
+  const std::string& collapse_anno_name
 );
 
 #endif

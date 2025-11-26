@@ -35,6 +35,8 @@ class Gene {
   string chrom;
   int start_pos;
   int end_pos;
+  string raw_var_ids;
+  bool var_ids_parsed;
   shared_ptr<const unordered_set<string> > var_ids;
   shared_ptr<const vector<string> > var_ids_order;
 };

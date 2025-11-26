@@ -55,6 +55,15 @@ namespace parameter_checks {
   void check_case_control_ratio(double case_control_ratio);
 
   void check_float_size(int float_size, double buffer_r2);
+
+  vector<string> check_cohort_extract_files(const vector<string>& cohort_extract_files, const vector<string>& cohorts);
+
+  void check_arg_is_nonnegative(double arg, const string& arg_name);
+
+  void check_arg_is_positive(double arg, const string& arg_name);
+
+  void check_arg_only_one_is_true(vector<bool> args, const vector<string>& arg_names);
+
 }
 
 

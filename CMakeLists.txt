@@ -70,6 +70,7 @@ find_path(
   Eigen
   HINTS ${EIGEN_PATH}
         /usr/local/include/eigen3
+        /usr/local/lib/eigen-3.4.0
 )
 if (${EIGEN} STREQUAL EIGEN-NOTFOUND)
   message(SEND_ERROR "could not find Eigen folder at EIGEN_PATH")

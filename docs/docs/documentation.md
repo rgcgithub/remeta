@@ -92,6 +92,10 @@ Alternatively **remeta** can use a maximum allele frequency observed across coho
 Lastly, **remeta** allele frequencies can be specifed in an allele frequency file using the `--aaf-file` argument.
 See [File Formats](file_formats.md) for a list of available formats.
 
+**Variant weights**
+
+Weights can be adjusted with the `--{skato,burden}-weight-strategy` argument. Setting `--{skato,burden}-weight-strategy beta` draws weights $w^{1/2} = \text{Beta}(MAF; 1, 25)$. Setting `--{skato,burden}-weight-strategy uniform` sets all variant weights to 1.
+
 **Unbalanced binary traits**
 
 **remeta** uses two strategies to control type 1 error for unbalanced binary traits:
@@ -115,8 +119,8 @@ Variant level parameters are avaiable for burden test, SKATO, and ACATV, and adj
 | `--trait-name`              | STRING | Required | Name of trait. |
 | `--trait-type`              | STRING | Required | One of BT or QT. |
 | `--out`                     | STRING | Required | Prefix for output files. |
-| `--burden-aaf-bins` (=0.0001 0.001 0.005 0.01) | FLOAT1 FLOAT2 ... | Optional | Allele frequency cutoffs for building masks for burden testing. |
-| `--burden-singleton-def` (=within) | STRING | Optional | Define singletons for the singleton mask within cohorts or across cohorts. One of 'within', 'across' or 'omit'. |
+| `--burden-aaf-bins (=0.0001 0.001 0.005 0.01)` | FLOAT1 FLOAT2 ... | Optional | Allele frequency cutoffs for building masks for burden testing. |
+| `--burden-singleton-def (=within)` | STRING | Optional | Define singletons for the singleton mask within cohorts or across cohorts. One of 'within', 'across' or 'omit'. |
 | `--burden-weight-strategy (=uniform)` | STRING | Optional | Strategy to compute variant weights for burden testing. One of `beta` or `uniform`. |
 | `--burden-mask-spa-pval (=0.05)` | FLOAT | Optional | Apply a mask level SPA to burden tests when p-value < spa pval (BTs only). |
 | `--burden-mask-spa-ccr (=0.01)`  | FLOAT | Optional |  Apply a mask level SPA to burden tests # cases / # controls < spa-ccr (BTs only). |
@@ -145,7 +149,8 @@ Variant level parameters are avaiable for burden test, SKATO, and ACATV, and adj
 | `--chr`                     | STRING | Optional | Run only on specifed chromosome. |
 | `--gene`                    | STRING | Optional | Run only on specified gene. |
 | `--extract`                 | FILE | Optional | Include only the variants with IDs listed in this file (one per line). |
-| `--exclude`                 | FILE | Optional | Exclude variants with IDs listed in this file (one per line). |
+| `--cohort-extract`          | COHORT1=FILE1 COHORT2=FILE2 ... | Optional | Only include variants in FILE_N from COHORT_N and not in --exclude. |
+| `--exclude`                 | FILE | Optional | Exclude variants with IDs listed in this file (one per line, overridden by --extract). |
 | `--sources`                 | STRING1 STRING2 ... | Optional | Only meta-analyze variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...|
 | `--write-cohort-burden-tests` | FLAG | Optional |  Compute and store per cohort burden tests (ignores changes to --burden-weight-strategy). |
 | `--write-mask-snplist`      | FLAG | Optional | Write file with list of variants included in each mask. |
@@ -244,11 +249,11 @@ remeta merge \
   --burden-model ADD-WGR-LR \
   --acatv-model ADD-WGR-ACATV \
   --skato-model ADD-WGR-SKATO-ACAT \
-  --include-sbat \
+  --sbat-model ADD-WGR-BURDEN-SBAT \
   --out OUT_PREFIX
 ```
 
-**Compute GENE_P from regenie's gene-based test (BT with additive model using Firth regressoin)**
+**Compute GENE_P from regenie's gene-based test (BT with additive model using Firth regression)**
 ```none
 remeta merge \
   --htp GENE_HTP1 ... GENE_HTP23  \
@@ -256,7 +261,7 @@ remeta merge \
   --burden-model ADD-WGR-FIRTH \
   --acatv-model ADD-WGR-ACATV \
   --skato-model ADD-WGR-SKATO-ACAT \
-  --include-sbat \
+  --sbat-model ADD-WGR-BURDEN-SBAT \
   --out OUT_PREFIX
 ```
 
@@ -271,7 +276,7 @@ remeta merge \
 | `--burden-model (=REMETA-BURDEN-META)` | STRING | Model column to collapse burden p-values. |
 | `--acatv-model (=REMETA-ACATV-META)` | STRING | Model column to collapse ACATV p-values. |
 | `--skato-model (=REMETA-SKATO-META)` | STRING | Model column to collapse SKATO p-values. |
-| `--include-sbat`            | STRING | Optional | Include SBAT PVMA in GENE_P if available. |
+| `--sbat-model (=ADD-WGR-BURDEN-SBAT)` | STRING | Optional | Include SBAT PVMA in GENE_P if available. |
 
 
 ## remeta compute-ref-ld

@@ -3,8 +3,8 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
-using namespace std;
 
 #include "io/htpv4_reader.hpp"
 
@@ -14,11 +14,11 @@ class VariantFilter {
  public:
   VariantFilter();
 
-  void set_extract_file(const string& extract_file);
+  void set_extract_file(const std::string& extract_file);
 
-  void set_exclude_file(const string& exclude_file);
+  void set_exclude_file(const std::string& exclude_file);
 
-  void set_info_source_is_one_of(const vector<string>& sources);
+  void set_info_source_is_one_of(const std::vector<std::string>& sources);
 
   void set_effect_not_na();
 
@@ -34,9 +34,11 @@ class VariantFilter {
 
   void set_keep_remeta_gene_and_sbat();
 
-  bool include_htp_record(const htpv4_record_t& rec);
+  void set_cohort_extract_file(const std::string& extract_file, int cohort_idx);
 
-  bool exclude_htp_record(const htpv4_record_t& rec);
+  bool include_htp_record(const htpv4_record_t& rec, int cohort_idx);
+
+  bool exclude_htp_record(const htpv4_record_t& rec, int cohort_idx);
 
   bool include_variant(const variant_id& vid);
 
@@ -60,6 +62,8 @@ class VariantFilter {
   // avoid an expensive copy
   shared_ptr<unordered_set<variant_id> > extract_ids_ptr;
   shared_ptr<unordered_set<variant_id> > exclude_ids_ptr;
+  shared_ptr<unordered_set<int> > cohorts_with_extract_file_ptr;
+  shared_ptr<unordered_map<string, unordered_set<int> > > variant_cohort_idx_ptr;
 };
 
 #endif

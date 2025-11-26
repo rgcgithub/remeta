@@ -9,6 +9,7 @@ namespace po = boost::program_options;
 #include <htslib/hts_log.h>
 
 #include "logging.hpp"
+#include "parameter_checks.hpp"
 #include "run_compute_ref_ld.hpp"
 #include "run_esma.hpp"
 #include "run_genep.hpp"
@@ -197,6 +198,13 @@ Options (* Mandatory))"""");
     ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
     ("help", "Print this message and exit.");
 
+  po::options_description rgc_opts("RGC options");
+  rgc_opts.add_options()
+    ("skip-genep", "Skip GENE_P entries (i.e. where Name ends in .GENE and the test is not SBAT)");
+
+  po::options_description all_opts("All options");
+  all_opts.add(opts).add(rgc_opts);
+
   if (options.size() < 1) {
     cerr << opts;
     exit(1);
@@ -205,7 +213,7 @@ Options (* Mandatory))"""");
   po::variables_map vm;
   try {
     po::parsed_options parsed = po::command_line_parser(options)
-      .options(opts)
+      .options(all_opts)
       .run();
     po::store(parsed, vm);
     po::notify(vm);
@@ -255,8 +263,8 @@ Options (* Mandatory))"""");
            chr,
            extract,
            exclude,
-           sources,
-           source_def         
+           sources,  
+           source_def
   );
 }
 
@@ -322,6 +330,8 @@ Options (* Mandatory))"""");
       "Apply a per variant SPA to SKATO when p-value < spa pval (BTs only).")
     ("skato-sv-spa-ccr", po::value<double>()->value_name("FLOAT")->default_value(0.02, "0.02"),
       "Apply a per variant SPA to SKATO when # cases / # controls < spa ccr (BTs only).")
+    ("skato-collapse-below-aac", po::value<int>()->value_name("INT")->default_value(3),
+      "Collapse variants <AAC into a single 'meta-variant' for SKATO.")
     ("skip-skato", "Do not run SKATO.")
     ("acatv-max-aaf", po::value<double>()->value_name("FLOAT")->required()->default_value(0.01),
       "Maximum allele frequency for a variant to be included in mask for ACATV.")
@@ -348,8 +358,10 @@ Options (* Mandatory))"""");
       "If set, run only on this gene.")
     ("extract", po::value<string>()->value_name("FILE"),
       "Include only the variants with IDs listed in this file (one per line).")
+    ("cohort-extract", po::value<vector<string> >()->value_name("COHORT1=FILE1 COHORT2=FILE2 ...")->multitoken(),
+      "Only include variants in FILEN from COHORTN and not in --exclude.")
     ("exclude", po::value<string>()->value_name("FILE"),
-      "Exclude variants with IDs listed in this file (one per line).")
+      "Exclude variants with IDs listed in this file (one per line, overridden by --extract).")
     ("sources", po::value<vector<string> >()->value_name("SOURCE1 SOURCE2 ...")->multitoken(),
       "Only include variants where the info field SOURCE is one of SOURCE1 SOURCE2 ...")
     ("write-cohort-burden-tests", "Compute and store per cohort burden tests (ignores changes to --burden-weight-strategy).")
@@ -357,7 +369,7 @@ Options (* Mandatory))"""");
     ("recompute-score", "Recompute score statistics from betas and standard errors when missing in input.")
     ("keep-variants-not-in-ld-mat", "Keep variants absent from the LD matrix instead of dropping them.")
     ("ignore-mask-ld", "Ignore LD between variants in a mask.")
-    ("write-variant-aaf", "Write file with variant AAFs used for to determine which variants to include in masks.")
+    ("write-variant-aaf", "Write file with variant AAFs used to determine which variants to include in masks.")
     ("threads", po::value<int>()->value_name("INT")->default_value(1),
       "Number of threads to use.")
     ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
@@ -366,7 +378,9 @@ Options (* Mandatory))"""");
   po::options_description dev_opts("Development options");
   dev_opts.add_options()
     ("max-cond-var-per-gene", po::value<int>()->value_name("INT")->default_value(10000),
-      "Maximum number of variants to condition on per gene.");
+      "Maximum number of variants to condition on per gene.")
+    ("collapse-anno", po::value<string>()->value_name("STRING")->default_value(""),
+      "If set, collapse variants with specified annotation into a single meta-variant.");
 
   po::options_description all_opts("All options");
   all_opts.add(opts).add(dev_opts);
@@ -427,6 +441,10 @@ Options (* Mandatory))"""");
   if (vm.count("extract") > 0) {
     extract = vm["extract"].as<string>();
   }
+  vector<string> cohort_extract;
+  if (vm.count("cohort-extract") > 0) {
+    cohort_extract = vm["cohort-extract"].as<vector<string> >();
+  }
   string exclude = "";
   if (vm.count("exclude") > 0) {
     exclude = vm["exclude"].as<string>();
@@ -464,6 +482,7 @@ Options (* Mandatory))"""");
     vm["skato-mask-spa-ccr"].as<double>(),
     vm["skato-sv-spa-pval"].as<double>(),
     vm["skato-sv-spa-ccr"].as<double>(),
+    vm["skato-collapse-below-aac"].as<int>(),
     vm.count("skip-skato") > 0,
     vm["acatv-max-aaf"].as<double>(),
     vm["acatv-min-aac"].as<int>(),
@@ -479,6 +498,7 @@ Options (* Mandatory))"""");
     chr,
     gene,
     extract,
+    cohort_extract,
     exclude,
     sources,
     vm["threads"].as<int>(),
@@ -487,7 +507,8 @@ Options (* Mandatory))"""");
     vm.count("ignore-mask-ld") > 0,
     vm.count("recompute-score") > 0,
     vm.count("keep-variants-not-in-ld-mat") > 0,
-    vm.count("write-variant-aaf") > 0
+    vm.count("write-variant-aaf") > 0,
+    vm["collapse-anno"].as<string>()
   );
 }
 
@@ -513,11 +534,12 @@ Options (* Mandatory))"""");
       "Model column to collapse ACATV p-values.")
     ("skato-model", po::value<string>()->value_name("MODEL")->default_value("REMETA-SKATO-ACAT-META"),
       "Model column to collapse SKATO p-values.")
+    ("sbat-model", po::value<string>()->value_name("MODEL")->default_value("ADD-WGR-BURDEN-SBAT"),
+      "Model column to collapse SBAT POS and NEG p-values.")
     ("extract", po::value<string>()->value_name("FILE"),
       "Include only the variants with IDs listed in this file (one per line).")
     ("exclude", po::value<string>()->value_name("FILE"),
       "Exclude variants with IDs listed in this file (one per line).")
-    ("include-sbat", "Include SBAT PVMA in GENE_P if available.")
     ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")
     ("help", "Print this message and exit.");
 
@@ -571,10 +593,6 @@ Options (* Mandatory))"""");
   if (vm.count("exclude") > 0) {
     exclude = vm["exclude"].as<string>();
   }
-  bool include_sbat = false;
-  if (vm.count("include-sbat")) {
-    include_sbat = true;
-  }
   bool drop_regenie_gene = false;
   if (vm.count("drop-regenie-gene")) {
     drop_regenie_gene = true;
@@ -589,7 +607,7 @@ Options (* Mandatory))"""");
     vm["burden-model"].as<string>(),
     vm["acatv-model"].as<string>(),
     vm["skato-model"].as<string>(),
-    include_sbat,
+    vm["sbat-model"].as<string>(),
     extract,
     exclude,
     drop_regenie_gene,
@@ -664,7 +682,7 @@ Options (* Mandatory))"""");
     ("sample-size", po::value<int>()->value_name("INT")->required(),
       "Sample size used to compute LD. (*)")
     ("sparsity-threshold", po::value<double>()->value_name("FLOAT")->required(),
-      "Drop corr where abs(corr^2) < sparsity threshold used for sparsity. (*)")
+      "Drop corr where corr^2 < sparsity threshold used for sparsity. (*)")
     ("out", po::value<string>()->value_name("PREFIX")->required(),
       "Prefix to output files. (*)")
     ("log-level", po::value<string>()->value_name("LEVEL"), "Set logging level.")

@@ -60,7 +60,8 @@ Eigen::ArrayXi get_true_indices(const Ref<const ArrayXb>&  bool_arr){
 
 // https://ritscm.regeneron.com/projects/RGC-STATML/repos/regenie/browse/src/Joint_Tests.cpp#283
 // logpvals are assumed to be -log10 pvalues
-double get_acat_robust(const Eigen::Ref<const ArrayXd>& logpvals, const Eigen::Ref<const ArrayXd>& weights){ // robust to low pvalues
+// robust to low pvalues
+double get_acat_robust(const Eigen::Ref<const ArrayXd>& logpvals, const Eigen::Ref<const ArrayXd>& weights, double pmax_thr) {
   // if single pval, return log10p
   int n_pv = ((weights!=0) && (logpvals >= 0)).count();
   if(n_pv == 0) return 1;
@@ -86,9 +87,9 @@ double get_acat_robust(const Eigen::Ref<const ArrayXd>& logpvals, const Eigen::R
   // T_B (can be negative)
   if(n_B > 0){
     ArrayXi vind = get_true_indices((weights!=0) && (logpvals >= 0) && (logpvals < lpv_thr));
-    ArrayXd pv = pow(10, -logpvals(vind)).min(0.999); // avoid pvalues of 1
-    ArrayXd ws = weights( vind ) / wsum; 
-    TB = ( ws * tan( M_PI * (0.5 - pv)) ).sum(); 
+    ArrayXd pv = pow(10, -logpvals(vind)).min(pmax_thr); // avoid pvalues of 1
+    ArrayXd ws = weights( vind ) / wsum;
+    TB = ( ws * tan( M_PI * (0.5 - pv)) ).sum();
   }
 
   // T_ACAT = TA + TB
@@ -139,6 +140,10 @@ template <typename T> int sgn(T val) {
 }
 
 test_result_t chisq_df1(const double& stat) {
+  if (boost::math::isnan(stat) || boost::math::isinf(stat)) {
+    return stat::tests::TEST_FAILED;
+  }
+
   boost::math::chi_squared chisq1(1);
   double pval = boost::math::cdf(boost::math::complement(chisq1, stat));
   if (pval == 0) {
@@ -196,7 +201,7 @@ test_result_t chisq_dfk(const double& stat, const double& df) {
 }
 
 test_result_t skato(const double& Qskat, const double& Qburden, double rho, const Eigen::MatrixXd& LD) {
-  if (rho == 1) rho = 1 - 1e-3;
+  if (rho == 1) return wst_burden(Qburden, LD.sum());
   double tol = 1e-5;
   double Qrho = (1 - rho)*Qskat + rho*Qburden;
 
@@ -242,11 +247,20 @@ test_result_t wst_burden(const double& Qburden, const Eigen::MatrixXd& LD) {
   }
 }
 
-test_result_t acat(const vector<double>& log10_pvals) {
+test_result_t wst_burden(const double& Qburden, const double& ld_sum) {
+  if (ld_sum > 0) {
+    return chisq_df1(Qburden / ld_sum);
+  } else {
+    return stat::tests::TEST_FAILED;
+  }
+}
+
+test_result_t acat(const vector<double>& log10_pvals, double pmax_thr) {
   ArrayXd wts = ArrayXd::Constant(log10_pvals.size(), 1); // uniform weights
   double log10p = get_acat_robust(
     -1*Map<const ArrayXd>(log10_pvals.data(), (int)log10_pvals.size()), 
-    wts
+    wts,
+    pmax_thr
   );
   if (log10p == 1) {
     return TEST_FAILED;
@@ -258,10 +272,11 @@ test_result_t acat(const vector<double>& log10_pvals) {
   }
 }
 
-test_result_t weighted_acat(const vector<double>& log10_pvals, const vector<double>& weights) {
+test_result_t weighted_acat(const vector<double>& log10_pvals, const vector<double>& weights, double pmax_thr) {
   double log10p = get_acat_robust(
     -1*Map<const ArrayXd>(log10_pvals.data(), log10_pvals.size()),
-    Map<const ArrayXd>(weights.data(), weights.size())
+    Map<const ArrayXd>(weights.data(), weights.size()),
+    pmax_thr
   );
   if (log10p == 1) {
     return TEST_FAILED;
@@ -282,7 +297,7 @@ test_result_t fishers(const vector<double>& log10_pvals) {
   return chisq_dfk(chi2, 2*log10_pvals.size());
 }
 
-test_result_t stouffers(const vector<double>& log10_pvals, const vector<double>& weights) {
+test_result_t stouffers(const vector<double>& log10_pvals, const vector<double>& weights, double adj_var) {
   boost::math::normal s;
   double numer = 0;
   double denom = 0;
@@ -298,12 +313,13 @@ test_result_t stouffers(const vector<double>& log10_pvals, const vector<double>&
     numer += weights[i] * stat;
     denom += weights[i] * weights[i];
   }
+  denom += adj_var;
   denom = sqrt(denom);
   double z = -numer / denom;
   return normal(z, false);
 }
 
-test_result_t stouffers_two_sided(const vector<double>& log10_pvals, const vector<double>& weights, const vector<double>& signs) {  
+test_result_t stouffers_two_sided(const vector<double>& log10_pvals, const vector<double>& weights, const vector<double>& signs, double adj_var) {  
   boost::math::normal s;
   double numer = 0;
   double denom = 0;
@@ -319,6 +335,7 @@ test_result_t stouffers_two_sided(const vector<double>& log10_pvals, const vecto
     numer += signs[i] * weights[i] * stat;
     denom += weights[i] * weights[i];
   }
+  denom += adj_var;
   denom = sqrt(denom);
   double z = -abs(numer) / denom;
   return normal(z, true);
@@ -533,9 +550,13 @@ test_result_t mixture_of_chisq_liu(const double& stat, const Eigen::VectorXd& we
   }
 
   // 0 ncp gives strange behavior with non_central_chi_squared (returns -cdf instead of 1-cdf)
-  if (cvals(5) == 0) {
+  if (boost::math::isnan(cvals(4)) || boost::math::isinf(cvals(4))) {
+    return TEST_FAILED;
+  } else if (cvals(5) == 0) {
     return chisq_dfk(val, cvals(4));
-  } else  {
+  } else if (boost::math::isnan(cvals(5)) || boost::math::isinf(cvals(5))) {
+    return TEST_FAILED;
+  } else {
     pv = boost::math::cdf(
       boost::math::complement(
         boost::math::non_central_chi_squared(cvals(4), cvals(5)), val
