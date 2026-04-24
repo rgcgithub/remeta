@@ -152,8 +152,8 @@ class GeneSumStats {
   std::vector<std::unordered_set<variant_id> > ld_variants_found;
 
   Eigen::SparseMatrix<double> gene_ld_mat;
-  Eigen::MatrixXd gene_buffer_ld_mat;
-  Eigen::MatrixXd buffer_ld_mat;
+  Eigen::SparseMatrix<double> gene_buffer_ld_mat;
+  Eigen::SparseMatrix<double> buffer_ld_mat;
 
   bool found_at_least_one_conditional_variant;
   bool found_at_least_one_ld_mat;

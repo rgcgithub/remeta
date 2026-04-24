@@ -675,8 +675,8 @@ GeneSumStats HTPMetaAnalyzer::collect_sum_stats(const vector<variant_id>& varian
   sum_stats.found_at_least_one_ld_mat = false;
   sum_stats.found_at_least_one_conditional_variant = false;
   sum_stats.gene_ld_mat = SpMat(variants_found.size(), variants_found.size());
-  sum_stats.gene_buffer_ld_mat = MatrixXd(variants_found.size(), sum_stats.gene_conditional_variants.size());
-  sum_stats.buffer_ld_mat = MatrixXd(sum_stats.gene_conditional_variants.size(), sum_stats.gene_conditional_variants.size());
+  sum_stats.gene_buffer_ld_mat = SpMat(variants_found.size(), sum_stats.gene_conditional_variants.size());
+  sum_stats.buffer_ld_mat = SpMat(sum_stats.gene_conditional_variants.size(), sum_stats.gene_conditional_variants.size());
   for (int s = 0; s < nstudies; ++s) {
     if (this->ld_mat_required() && !ld_mat_readers[s].contains_gene(gene_name)) {
       log_warning("LD matrix for " + gene_name + " is not found in cohort " + this->cohorts[s] + ", skipping...");
@@ -688,7 +688,7 @@ GeneSumStats HTPMetaAnalyzer::collect_sum_stats(const vector<variant_id>& varian
     // MatrixXf Gf;
     MatrixXf G_Cf;
     MatrixXf Cf;
-    //MatrixXd G;       // gene_ld_mat
+    // MatrixXd G;       // gene_ld_mat
     MatrixXd G_C;     // gene_buffer_ld_mat
     MatrixXd C;       // inverse of buffer_ld_mat
 
@@ -819,8 +819,8 @@ GeneSumStats HTPMetaAnalyzer::collect_sum_stats(const vector<variant_id>& varian
 
     sum_stats.gene_ld_mat += Gsp;
     if (sum_stats.found_at_least_one_conditional_variant) {
-      sum_stats.gene_buffer_ld_mat += G_C;
-      sum_stats.buffer_ld_mat += C;
+      sum_stats.gene_buffer_ld_mat += G_C.sparseView();
+      sum_stats.buffer_ld_mat += C.sparseView();
     }
 
     if (this->burden_params.params_set() || sum_stats.found_at_least_one_conditional_variant) {

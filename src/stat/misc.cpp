@@ -560,7 +560,7 @@ void rescale_cov_block(SparseMatrix<double>& Gsp,
                               .matrix()
                               .asDiagonal()
                             );
-  MatrixXd D2 = (by_C_diag.array() / G_diag_nonzero.array())
+  MatrixXd D2 = (by_C_diag.array() / C_diag.array())
                 .sqrt()
                 .matrix()
                 .asDiagonal(); 

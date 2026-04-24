@@ -223,7 +223,7 @@ for chr in 1 2; do
     --extract example/example.exome \
     --chr ${chr} \
     --set-list example/example.setlist \
-    --anno-file example/example.annotations \
+    --anno-file example/example.annotations.gz \
     --mask-def example/example.masks \
     --trait-name Y \
     --trait-type bt \
